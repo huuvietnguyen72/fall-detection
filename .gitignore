@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+.pytest_cache/
+.env
+logs/
+data/
+build/
+models/*.pt
+models/*.task
+.ruff_cache/
+.DS_Store

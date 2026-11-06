@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Giám sát té ngã</title>
+<style>
+  :root {
+    --bg: #0B1120; --card: #131C2E; --card2: #1A2438; --line: #26324A;
+    --text: #F1F5F9; --muted: #94A3B8; --dim: #64748B;
+    --ok: #22C55E; --warn: #F59E0B; --bad: #EF4444; --info: #38BDF8;
+    --ok-bg: rgba(34,197,94,.12); --warn-bg: rgba(245,158,11,.12); --bad-bg: rgba(239,68,68,.14);
+    --r: 14px;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+  .num { font-variant-numeric: tabular-nums; }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  svg.i { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+
+  header { display: flex; align-items: center; gap: 12px; padding: 14px 24px; border-bottom: 1px solid var(--line); }
+  header h1 { font-size: 17px; font-weight: 650; margin: 0; }
+  header .sp { flex: 1; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: 13px;
+    font-weight: 600; background: var(--card2); color: var(--muted); white-space: nowrap; }
+  .chip.ok { background: var(--ok-bg); color: #4ADE80; } .chip.bad { background: var(--bad-bg); color: #F87171; }
+  .chip.warn { background: var(--warn-bg); color: #FBBF24; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+
+  main { display: grid; gap: 16px; padding: 16px 24px 24px; grid-template-columns: 1.15fr 1fr 1fr; max-width: 1680px; margin: 0 auto; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--r); padding: 16px 18px; min-width: 0; }
+  .card h2 { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; font-size: 13px; font-weight: 650;
+    letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+  .card h2 .sp { flex: 1; }
+
+  /* ---- trạng thái chính ---- */
+  #hero { grid-column: 1 / -1; display: flex; align-items: center; gap: 28px; padding: 22px 28px; transition: background .3s, border-color .3s; }
+  #hero .icon { width: 64px; height: 64px; border-radius: 18px; display: grid; place-items: center; background: var(--ok-bg); color: var(--ok); flex: none; }
+  #hero .icon svg { width: 34px; height: 34px; }
+  #hero .t { font-size: 34px; font-weight: 800; letter-spacing: .01em; line-height: 1.15; }
+  #hero .s { color: var(--muted); font-size: 16px; margin-top: 2px; }
+  #hero .grow { flex: 1; min-width: 0; }
+  #hero.COUNTDOWN { background: #1F1A0E; border-color: var(--warn); } #hero.COUNTDOWN .icon { background: var(--warn-bg); color: var(--warn); }
+  #hero.COUNTDOWN .t { color: #FBBF24; }
+  #hero.SOS { background: #2A0F12; border-color: var(--bad); } #hero.SOS .icon { background: var(--bad-bg); color: var(--bad); }
+  #hero.SOS .t { color: #F87171; }
+  #hero.IDLE .t { color: #4ADE80; }
+  #hero.OFFLINE .t { color: var(--muted); } #hero.OFFLINE .icon { background: var(--card2); color: var(--muted); }
+  @media (prefers-reduced-motion: no-preference) { #hero.SOS { animation: pulse 1.2s ease-in-out infinite; } }
+  @keyframes pulse { 50% { background: #3D1418; } }
+  .ring { position: relative; width: 92px; height: 92px; flex: none; }
+  .ring svg { width: 92px; height: 92px; transform: rotate(-90deg); }
+  .ring circle { fill: none; stroke-width: 8; }
+  .ring .bg { stroke: var(--line); } .ring .fg { stroke: var(--warn); stroke-linecap: round; transition: stroke-dashoffset .5s linear; }
+  .ring span { position: absolute; inset: 0; display: grid; place-items: center; font-size: 30px; font-weight: 800; color: #FBBF24; }
+
+  /* ---- các bước fusion ---- */
+  .steps { display: flex; gap: 10px; flex-wrap: wrap; }
+  .step { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 10px; background: var(--card2);
+    border: 1px solid var(--line); font-size: 14px; color: var(--muted); }
+  .step.ok { border-color: rgba(34,197,94,.5); color: #BBF7D0; } .step.ok svg { color: var(--ok); }
+  .step.bad { border-color: rgba(239,68,68,.5); color: #FECACA; } .step.bad svg { color: var(--bad); }
+  .step.wait svg { color: var(--warn); }
+
+  button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 0 16px;
+    border-radius: 10px; border: 1px solid var(--line); background: var(--card2); color: var(--text); font: inherit;
+    font-weight: 600; cursor: pointer; transition: border-color .15s, background .15s; }
+  button:hover { border-color: var(--info); } button:focus-visible { outline: 3px solid var(--info); outline-offset: 2px; }
+  button.primary { background: #166534; border-color: #22C55E; } button.primary:hover { background: #15803D; }
+  button:disabled { opacity: .5; cursor: progress; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  /* ---- số liệu ---- */
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 12px; }
+  .stat { background: var(--card2); border-radius: 10px; padding: 8px 10px; min-width: 0; }
+  .stat b { display: block; font-size: 18px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .stat small { color: var(--muted); font-size: 12px; }
+  .row2 { display: grid; grid-template-columns: 1fr 132px; gap: 12px; align-items: stretch; }
+  .chartbox { background: var(--card2); border-radius: 10px; padding: 8px 10px 4px; position: relative; }
+  .chartbox .lbl { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); }
+  canvas { width: 100%; height: 110px; display: block; }
+  .gauge { background: var(--card2); border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 6px; }
+  .gauge svg { width: 112px; height: 66px; }
+  .gauge b { font-size: 20px; margin-top: -6px; } .gauge small { color: var(--muted); font-size: 12px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  th { text-align: left; color: var(--dim); font-weight: 600; font-size: 12px; padding: 4px 6px; border-bottom: 1px solid var(--line); }
+  td { padding: 6px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  tr:last-child td { border-bottom: none; }
+  .yes { color: #F87171; font-weight: 700; } .no { color: var(--muted); }
+  .bar { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; width: 54px; display: inline-block; vertical-align: middle; margin-right: 6px; }
+  .bar i { display: block; height: 100%; background: var(--info); }
+
+  /* ---- camera ---- */
+  .cam { position: relative; aspect-ratio: 4 / 3; background: #070B14; border-radius: 10px; overflow: hidden; display: grid; place-items: center; }
+  .cam img { width: 100%; height: 100%; object-fit: contain; display: none; }
+  .cam .empty { color: var(--dim); font-size: 14px; display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; padding: 16px; }
+  .cam .badge { position: absolute; left: 10px; bottom: 10px; padding: 6px 12px; border-radius: 10px; font-weight: 700; font-size: 16px;
+    background: rgba(11,17,32,.85); border: 1px solid var(--line); display: none; align-items: center; gap: 8px; }
+  .cam .badge.LYING { border-color: var(--bad); color: #F87171; }
+  .meta { display: flex; justify-content: space-between; gap: 8px; margin-top: 10px; color: var(--muted); font-size: 13px; flex-wrap: wrap; }
+
+  #decision { font-size: 14px; padding: 10px 12px; border-radius: 10px; background: #0A0F1C; border: 1px solid var(--line); min-height: 44px; }
+  .r-SOS { color: #F87171; font-weight: 700; } .r-IGNORED, .r-CANCELLED { color: #4ADE80; } .r-WARN { color: #FBBF24; } .r-RESOLVED { color: var(--info); }
+  #events { list-style: none; margin: 0; padding: 0; max-height: 290px; overflow: auto; font-size: 13.5px; }
+  #events li { display: flex; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+  #events time { color: var(--dim); flex: none; }
+  .kv { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; font-size: 14px; }
+  .kv span { color: var(--muted); } .kv b { font-weight: 600; text-align: right; overflow-wrap: anywhere; }
+  #snap { width: 100%; max-height: 260px; object-fit: contain; background: #070B14; border-radius: 10px; display: none; margin-top: 4px; }
+  .muted { color: var(--muted); font-size: 13px; }
+  .col2 { grid-column: span 2; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+
+  @media (max-width: 1200px) { main { grid-template-columns: 1fr 1fr; } .col2 { grid-column: 1 / -1; } }
+  @media (max-width: 760px) { main { grid-template-columns: 1fr; padding: 12px; } #hero { flex-wrap: wrap; } .stats { grid-template-columns: repeat(2, 1fr); } }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></symbol>
+  <symbol id="i-siren" viewBox="0 0 24 24"><path d="M7 18v-6a5 5 0 1 1 10 0v6"/><path d="M5 21h14v-3H5zM21 12h1M18.5 4.5 18 5M2 12h1M12 2v1M4.9 4.9l.7.7"/></symbol>
+  <symbol id="i-belt" viewBox="0 0 24 24"><rect x="2" y="9" width="20" height="6" rx="2"/><rect x="9" y="7" width="6" height="10" rx="1.5"/></symbol>
+  <symbol id="i-cam" viewBox="0 0 24 24"><path d="M23 7l-7 5 7 5z"/><rect x="1" y="5" width="15" height="14" rx="2"/></symbol>
+  <symbol id="i-cpu" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M9 1v3M15 1v3M9 20v3M15 20v3M20 9h3M20 14h3M1 9h3M1 14h3"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></symbol>
+  <symbol id="i-server" viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><path d="M6 6h.01M6 18h.01"/></symbol>
+  <symbol id="i-send" viewBox="0 0 24 24"><path d="m22 2-7 20-4-9-9-4z"/><path d="M22 2 11 13"/></symbol>
+  <symbol id="i-vol" viewBox="0 0 24 24"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/></symbol>
+  <symbol id="i-mute" viewBox="0 0 24 24"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="m23 9-6 6M17 9l6 6"/></symbol>
+  <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/></symbol>
+</svg>
+
+<header>
+  <svg class="i" style="width:22px;height:22px;color:var(--ok)"><use href="#i-shield"/></svg>
+  <h1>Hệ thống giám sát &amp; phát hiện té ngã</h1>
+  <span class="sp"></span>
+  <span class="chip" id="cBelt"><span class="dot"></span>Đai lưng</span>
+  <span class="chip" id="cCam"><span class="dot"></span>Camera</span>
+  <span class="chip" id="cSrv"><span class="dot"></span>Server</span>
+  <span class="chip num" id="clock">--:--:--</span>
+</header>
+
+<main>
+  <!-- 1. Trạng thái tổng -->
+  <section class="card IDLE" id="hero" aria-live="polite">
+    <div class="icon"><svg class="i"><use id="heroIcon" href="#i-shield"/></svg></div>
+    <div class="grow">
+      <div class="t" id="hTitle">An toàn</div>
+      <div class="s" id="hSub">Đang giám sát song song đai lưng và camera</div>
+      <div class="steps" id="steps" style="margin-top:12px"></div>
+    </div>
+    <div class="ring" id="ring" hidden>
+      <svg viewBox="0 0 92 92"><circle class="bg" cx="46" cy="46" r="40"/><circle class="fg" id="ringFg" cx="46" cy="46" r="40" stroke-dasharray="251.3" stroke-dashoffset="0"/></svg>
+      <span class="num" id="ringTxt">15</span>
+    </div>
+    <div class="actions">
+      <button class="primary" id="btnReset" hidden><svg class="i"><use href="#i-check"/></svg>Đã xác nhận an toàn</button>
+    </div>
+  </section>
+
+  <!-- 2. Đai lưng -->
+  <section class="card">
+    <h2><svg class="i"><use href="#i-belt"/></svg>Đai lưng · TinyML<span class="sp"></span><span class="chip" id="beltState">—</span></h2>
+    <div class="stats">
+      <div class="stat"><b class="num" id="sRssi">—</b><small>WiFi</small></div>
+      <div class="stat"><b class="num" id="sUptime">—</b><small>Hoạt động</small></div>
+      <div class="stat"><b class="num" id="sInfer">—</b><small>Thời gian AI</small></div>
+      <div class="stat"><b id="sCalib">—</b><small>Hướng lắp</small></div>
+    </div>
+    <div class="row2">
+      <div class="chartbox">
+        <div class="lbl"><span>Gia tốc lớn nhất mỗi giây (g)</span><span class="num" id="accNow">—</span></div>
+        <canvas id="accChart" role="img" aria-label="Biểu đồ gia tốc 2 phút gần nhất"></canvas>
+      </div>
+      <div class="gauge" role="img" aria-label="Góc nghiêng thân người">
+        <svg viewBox="0 0 112 66"><path d="M8 60a48 48 0 0 1 96 0" stroke="#26324A" stroke-width="10" fill="none" stroke-linecap="round"/>
+          <path id="gArc" d="M8 60a48 48 0 0 1 96 0" stroke="#22C55E" stroke-width="10" fill="none" stroke-linecap="round" stroke-dasharray="150.8" stroke-dashoffset="150.8"/></svg>
+        <b class="num" id="tiltNow">—</b><small>Thân nghiêng</small>
+      </div>
+    </div>
+    <h2 style="margin-top:14px"><svg class="i"><use href="#i-cpu"/></svg>Va chạm đai đã xét</h2>
+    <table>
+      <thead><tr><th>Giờ</th><th>Đỉnh</th><th>AI P(ngã)</th><th>Nghiêng</th><th>Kết luận</th></tr></thead>
+      <tbody id="detBody"><tr><td colspan="5" class="muted">Chưa có va chạm nào vượt 2g</td></tr></tbody>
+    </table>
+  </section>
+
+  <!-- 3. Camera -->
+  <section class="card">
+    <h2><svg class="i"><use href="#i-cam"/></svg>Camera · Vision<span class="sp"></span><span class="chip num" id="camFps">—</span></h2>
+    <div class="cam">
+      <img id="preview" alt="Hình camera trực tiếp kèm khung xương">
+      <div class="empty" id="camEmpty"><svg class="i" style="width:28px;height:28px"><use href="#i-cam"/></svg>Chưa có hình từ camera<br><span class="mono" style="font-size:12px">python -m vision.main</span></div>
+      <div class="badge" id="posBadge"></div>
+    </div>
+    <div class="meta">
+      <span>Độ tin cậy <span class="bar"><i id="confBar" style="width:0"></i></span><b class="num" id="conf">—</b></span>
+      <span class="num" id="posFor">—</span>
+    </div>
+  </section>
+
+  <!-- 4. Quyết định -->
+  <section class="card">
+    <h2><svg class="i"><use href="#i-list"/></svg>Decision Fusion</h2>
+    <div id="decision" class="mono">Chưa có sự cố</div>
+    <h2 style="margin-top:16px"><svg class="i"><use href="#i-clock"/></svg>Nhật ký</h2>
+    <ul id="events"></ul>
+  </section>
+
+  <!-- 5. Ảnh SOS + hệ thống -->
+  <section class="card col2">
+    <h2><svg class="i"><use href="#i-image"/></svg>Ảnh hiện trường đã gửi gần nhất<span class="sp"></span><span class="muted num" id="snapTime"></span></h2>
+    <p class="muted" id="snapEmpty">Ảnh được chụp tự động khi gửi cảnh báo, hoặc bấm “Chụp ảnh”.</p>
+    <img id="snap" alt="Ảnh hiện trường">
+  </section>
+  <section class="card">
+    <h2><svg class="i"><use href="#i-server"/></svg>Hệ thống</h2>
+    <div class="kv">
+      <span>Địa chỉ cho đai</span><b class="mono" id="addr">—</b>
+      <span>MQTT</span><b id="mqtt">—</b>
+      <span>Telegram</span><b id="tg">—</b>
+      <span>Thời gian hủy</span><b class="num" id="cd">—</b>
+    </div>
+    <div class="actions" style="margin-top:14px">
+      <button id="btnSnap"><svg class="i"><use href="#i-image"/></svg>Chụp ảnh</button>
+      <button id="btnTg"><svg class="i"><use href="#i-send"/></svg>Gửi Telegram thử</button>
+      <button id="btnSound" aria-pressed="false"><svg class="i"><use id="sndIcon" href="#i-mute"/></svg><span id="sndTxt">Bật âm thanh</span></button>
+    </div>
+  </section>
+</main>
+<div class="sr" aria-live="assertive" id="srAlert"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const POSTURE = { STANDING: "Đang đứng", SITTING: "Đang ngồi", BENDING: "Đang cúi", LYING: "Đang nằm",
+                  NO_PERSON: "Không thấy người", UNKNOWN: "Mất tín hiệu" };
+const BELT_STATE = { IDLE: ["Bình thường", "ok"], ALARM: ["Đang báo động", "warn"], WAIT_SERVER: ["Chờ xác nhận", "warn"],
+                     SOS: ["SOS", "bad"] };
+const fmtTime = t => new Date(t * 1000).toLocaleTimeString("vi-VN", { hour12: false });
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const dur = s => s == null ? "—" : s < 60 ? `${Math.floor(s)} giây` : s < 3600 ? `${Math.floor(s / 60)} phút` : `${(s / 3600).toFixed(1)} giờ`;
+const icon = (id, cls = "") => `<svg class="i ${cls}"><use href="#${id}"/></svg>`;
+const n = v => Number.isFinite(Number(v)) ? Number(v) : 0;  // số từ MQTT có thể thiếu / sai kiểu
+function chip(el, text, cls) { el.className = "chip " + (cls || ""); el.innerHTML = `<span class="dot"></span>${esc(text)}`; }
+
+/* ---------- âm thanh cảnh báo ---------- */
+let soundOn = false, audio = null, lastState = "IDLE";
+function beep(freq, ms) {
+  if (!soundOn) return;
+  audio = audio || new AudioContext();
+  const o = audio.createOscillator(), g = audio.createGain();
+  o.frequency.value = freq; o.connect(g); g.connect(audio.destination); g.gain.value = 0.15;
+  o.start(); o.stop(audio.currentTime + ms / 1000);
+}
+setInterval(() => { if (lastState === "SOS") beep(880, 350); else if (lastState === "COUNTDOWN") beep(660, 90); }, 1000);
+
+/* ---------- biểu đồ gia tốc ---------- */
+function drawChart(history, now) {
+  const c = $("accChart"), dpr = window.devicePixelRatio || 1;
+  const w = c.clientWidth, h = c.clientHeight;
+  if (c.width !== w * dpr) { c.width = w * dpr; c.height = h * dpr; }
+  const x = c.getContext("2d");
+  x.setTransform(dpr, 0, 0, dpr, 0, 0);
+  x.clearRect(0, 0, w, h);
+  const span = 120, yMax = Math.max(4, ...history.map(p => n(p[1]))) * 1.1;
+  const X = t => w - (now - t) / span * w, Y = g => h - 4 - g / yMax * (h - 8);
+  x.strokeStyle = "#26324A"; x.lineWidth = 1; x.font = "11px sans-serif"; x.fillStyle = "#64748B";
+  for (const g of [1, 2, 3, 4, 6, 8].filter(g => g < yMax)) { x.beginPath(); x.moveTo(0, Y(g)); x.lineTo(w, Y(g)); x.stroke(); }
+  x.setLineDash([4, 4]); x.strokeStyle = "#F59E0B"; x.beginPath(); x.moveTo(0, Y(2)); x.lineTo(w, Y(2)); x.stroke(); x.setLineDash([]);
+  x.fillStyle = "#F59E0B"; x.fillText("ngưỡng 2g", 4, Y(2) - 4);
+  const pts = history.filter(p => now - p[0] <= span && p[1] != null).map(p => [p[0], n(p[1])]);
+  if (pts.length < 2) return;
+  const grad = x.createLinearGradient(0, 0, 0, h);
+  grad.addColorStop(0, "rgba(56,189,248,.35)"); grad.addColorStop(1, "rgba(56,189,248,0)");
+  x.beginPath(); x.moveTo(X(pts[0][0]), h);
+  pts.forEach(p => x.lineTo(X(p[0]), Y(p[1])));
+  x.lineTo(X(pts[pts.length - 1][0]), h); x.closePath(); x.fillStyle = grad; x.fill();
+  x.beginPath(); pts.forEach((p, i) => i ? x.lineTo(X(p[0]), Y(p[1])) : x.moveTo(X(p[0]), Y(p[1])));
+  x.strokeStyle = "#38BDF8"; x.lineWidth = 2; x.stroke();
+}
+
+/* ---------- các bước Decision Fusion ---------- */
+function steps(s) {
+  const f = s.fusion, cam = s.camera.posture, lying = cam === "LYING", standing = cam === "STANDING";
+  const st = (cls, ic, text) => `<span class="step ${cls}">${icon(ic)}${esc(text)}</span>`;
+  if (f.state === "COUNTDOWN") return [
+    st("ok", "i-check", "Đai: phát hiện té ngã"),
+    st("wait", "i-clock", `Chờ hủy · còn ${Math.ceil(f.remaining_s)}s`),
+    st(lying ? "ok" : standing ? "bad" : "wait", lying ? "i-check" : standing ? "i-x" : "i-clock",
+       `Camera: ${POSTURE[cam] || cam}`),
+  ].join("");
+  if (f.state === "SOS") return [
+    st("ok", "i-check", f.sos_reason === "vision_only" ? "Đai: mất kết nối" : "Đai: phát hiện té ngã"),
+    st("ok", "i-check", "Không có phản hồi"),
+    st("ok", "i-check", `Camera: ${POSTURE[cam] || cam}`),
+    st("bad", "i-send", "Đã gửi SOS Telegram"),
+  ].join("");
+  return "";
+}
+
+let lastSnapT = null, lastPreviewT = null, lastAnnounce = "";
+function render(s) {
+  const f = s.fusion, belt = s.belt, bs = belt.status || {}, cam = s.camera, sys = s.system;
+  lastState = f.state;
+  $("clock").textContent = fmtTime(s.now);
+
+  /* header chips */
+  chip($("cBelt"), "Đai lưng", belt.online ? "ok" : "bad");
+  chip($("cCam"), "Camera", cam.online ? "ok" : "bad");
+  chip($("cSrv"), sys.mqtt ? "Server" : "MQTT lỗi", sys.mqtt ? "ok" : "bad");
+
+  /* hero */
+  const hero = $("hero");
+  const noDevice = f.state === "IDLE" && !belt.online && !cam.online;
+  hero.className = "card " + (noDevice ? "OFFLINE" : f.state);
+  const ring = $("ring");
+  ring.hidden = f.state !== "COUNTDOWN";
+  $("btnReset").hidden = f.state === "IDLE";
+  $("steps").innerHTML = steps(s);
+  if (noDevice) {
+    $("heroIcon").setAttribute("href", "#i-alert");
+    $("hTitle").textContent = "Chưa sẵn sàng";
+    $("hSub").textContent = "Chưa có đai lưng hay camera nào kết nối — bật thiết bị để bắt đầu giám sát";
+  } else if (f.state === "IDLE") {
+    $("heroIcon").setAttribute("href", "#i-shield");
+    $("hTitle").textContent = "An toàn";
+    const parts = [belt.online ? "đai lưng" : null, cam.online ? "camera" : null].filter(Boolean);
+    $("hSub").textContent = parts.length === 2 ? "Đang giám sát song song đai lưng và camera"
+      : `Chỉ đang giám sát bằng ${parts[0]} — kiểm tra ${belt.online ? "camera" : "đai lưng"}`;
+  } else if (f.state === "COUNTDOWN") {
+    $("heroIcon").setAttribute("href", "#i-alert");
+    $("hTitle").textContent = "Cảnh báo sơ cấp";
+    $("hSub").textContent = "Đai lưng phát hiện té ngã — chờ người dùng hủy hoặc camera xác nhận";
+    const frac = Math.max(0, f.remaining_s / f.countdown_s);
+    $("ringFg").setAttribute("stroke-dashoffset", (251.3 * (1 - frac)).toFixed(1));
+    $("ringTxt").textContent = Math.ceil(f.remaining_s);
+  } else {
+    $("heroIcon").setAttribute("href", "#i-siren");
+    $("hTitle").textContent = "SOS — Phát hiện té ngã!";
+    $("hSub").textContent = { fusion: "Đai lưng và camera cùng xác nhận", vision_only: "Camera xác nhận (đai lưng mất kết nối)",
+                              belt_only: "Đai lưng xác nhận (camera không quan sát được)" }[f.sos_reason] || "";
+  }
+  const announce = $("hTitle").textContent;
+  if (announce !== lastAnnounce) { $("srAlert").textContent = announce; lastAnnounce = announce; }
+
+  /* đai lưng */
+  const [bLabel, bCls] = belt.online ? (BELT_STATE[bs.state] || [bs.state || "Online", "ok"]) : ["Offline", "bad"];
+  chip($("beltState"), bLabel, bCls);
+  $("sRssi").textContent = bs.rssi ? `${bs.rssi} dBm` : "—";
+  $("sUptime").textContent = bs.uptime_s != null ? dur(bs.uptime_s) : "—";
+  $("sInfer").textContent = bs.infer_ms ? `${bs.infer_ms} ms` : "—";
+  $("sCalib").textContent = bs.calibrated == null ? "—" : bs.calibrated ? "Đã chuẩn" : "Mặc định";
+  const last = belt.history[belt.history.length - 1];
+  $("accNow").textContent = last && last[1] != null ? `${n(last[1]).toFixed(2)} g` : "—";
+  drawChart(belt.history, s.now);
+  const tilt = bs.tilt;
+  $("tiltNow").textContent = tilt != null ? `${Math.round(n(tilt))}°` : "—";
+  const t = Math.min(90, Math.max(0, n(tilt)));
+  $("gArc").setAttribute("stroke-dashoffset", (150.8 * (1 - t / 90)).toFixed(1));
+  $("gArc").setAttribute("stroke", t > 60 ? "#EF4444" : t > 35 ? "#F59E0B" : "#22C55E");
+  $("detBody").innerHTML = belt.detections.length ? belt.detections.slice(0, 6).map(d => `<tr>
+      <td class="num">${fmtTime(d.t)}</td><td class="num">${n(d.peak_g).toFixed(1)} g</td>
+      <td class="num"><span class="bar"><i style="width:${Math.round(n(d.ai) * 100)}%"></i></span>${d.ai_used ? n(d.ai).toFixed(2) : "—"}</td>
+      <td class="num">+${Math.round(n(d.tilt))}°</td>
+      <td class="${d.fall ? "yes" : "no"}">${d.fall ? "Té ngã" : "Bỏ qua"}</td></tr>`).join("")
+    : `<tr><td colspan="5" class="muted">Chưa có va chạm nào vượt 2g</td></tr>`;
+
+  /* camera */
+  $("camFps").textContent = cam.online && cam.fps ? `${cam.backend || ""} · ${cam.fps} FPS` : "—";
+  if (cam.preview_t && cam.preview_t !== lastPreviewT) {
+    lastPreviewT = cam.preview_t;
+    $("preview").src = "/preview.jpg?t=" + cam.preview_t;
+  }
+  const hasPreview = !!cam.preview_t;
+  $("preview").style.display = hasPreview ? "block" : "none";
+  $("camEmpty").style.display = hasPreview ? "none" : "flex";
+  const badge = $("posBadge");
+  badge.style.display = cam.online ? "inline-flex" : "none";
+  badge.className = "badge " + cam.posture;
+  badge.textContent = POSTURE[cam.posture] || cam.posture;
+  if (!hasPreview && cam.online) { $("camEmpty").style.display = "flex"; $("camEmpty").innerHTML = `${icon("i-cam")}Camera gửi tư thế nhưng chưa có hình`; }
+  $("conf").textContent = cam.online ? `${Math.round(cam.confidence * 100)}%` : "—";
+  $("confBar").style.width = cam.online ? `${Math.round(cam.confidence * 100)}%` : "0";
+  $("posFor").textContent = cam.online && cam.for_s != null ? `Giữ tư thế ${cam.for_s.toFixed(1)} giây` : "Camera chưa kết nối";
+
+  /* fusion + nhật ký */
+  const d = f.last_decision;
+  $("decision").innerHTML = d ? `<span class="r-${d.result}">${esc(d.message)}</span><br><span class="muted">${fmtTime(d.t)}</span>` : "Chưa có sự cố";
+  $("events").innerHTML = s.events.map(e => `<li><time class="num">${fmtTime(e.t)}</time><span class="${e.result ? "r-" + e.result : ""}">${esc(e.text)}</span></li>`).join("")
+    || `<li class="muted">Chưa có sự kiện</li>`;
+
+  /* ảnh SOS */
+  if (s.snapshot_t && s.snapshot_t !== lastSnapT) {
+    lastSnapT = s.snapshot_t;
+    $("snap").src = "/snapshot.jpg?t=" + s.snapshot_t;
+    $("snap").style.display = "block"; $("snapEmpty").style.display = "none";
+    $("snapTime").textContent = fmtTime(s.snapshot_t);
+  }
+
+  /* hệ thống */
+  $("addr").textContent = sys.ips.length ? `${sys.hostname} · ${sys.ips[0]}` : sys.hostname;
+  $("mqtt").innerHTML = sys.mqtt ? `<span style="color:#4ADE80">Đã kết nối</span> · cổng ${sys.mqtt_port}` : `<span style="color:#F87171">Mất kết nối</span>`;
+  $("tg").innerHTML = sys.telegram ? `<span style="color:#4ADE80">Đã cấu hình</span>` : `<span style="color:#FBBF24">Chạy thử (lưu vào logs/)</span>`;
+  $("cd").textContent = `${sys.countdown_s} giây`;
+}
+
+function connect() {
+  const es = new EventSource("/events");
+  es.onmessage = e => render(JSON.parse(e.data));
+  es.onerror = () => chip($("cSrv"), "Mất server", "bad");
+}
+connect();
+
+async function post(btn, url) {
+  btn.disabled = true;
+  try { return await (await fetch(url, { method: "POST" })).json(); } finally { btn.disabled = false; }
+}
+$("btnReset").onclick = () => post($("btnReset"), "/api/reset");
+$("btnSnap").onclick = async () => { const r = await post($("btnSnap"), "/api/snapshot"); if (!r.ok) alert("Camera không phản hồi"); };
+$("btnTg").onclick = async () => {
+  const r = await post($("btnTg"), "/api/test-telegram");
+  alert(r.enabled ? (r.ok ? "Đã gửi tin nhắn thử" : "Gửi thất bại — xem log server") : "Chưa cấu hình Telegram: tin nhắn được lưu vào thư mục logs/");
+};
+$("btnSound").onclick = () => {
+  soundOn = !soundOn;
+  $("btnSound").setAttribute("aria-pressed", soundOn);
+  $("sndIcon").setAttribute("href", soundOn ? "#i-vol" : "#i-mute");
+  $("sndTxt").textContent = soundOn ? "Tắt âm thanh" : "Bật âm thanh";
+  beep(660, 100);
+};
+</script>
+</body>
+</html>

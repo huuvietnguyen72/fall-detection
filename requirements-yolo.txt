@@ -1,0 +1,2 @@
+# Tùy chọn: chỉ cần nếu muốn chạy Vision Node với --backend yolo
+ultralytics

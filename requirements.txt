@@ -1,0 +1,13 @@
+# Server, camera, giả lập
+paho-mqtt>=2.0
+flask>=3.0
+requests
+python-dotenv
+numpy
+opencv-python
+mediapipe>=0.10.14
+zeroconf            # quảng bá fallserver.local trên Linux/Windows (macOS dùng dns-sd có sẵn)
+# TinyML: chuyển đổi / đánh giá SisFall
+scipy
+# Kiểm thử
+pytest
