@@ -9,5 +9,6 @@ mediapipe>=0.10.14
 zeroconf            # quảng bá fallserver.local trên Linux/Windows (macOS dùng dns-sd có sẵn)
 # TinyML: chuyển đổi / đánh giá SisFall
 scipy
+pyserial           # thu dữ liệu từ đai (tinyml/belt_collect.py)
 # Kiểm thử
 pytest

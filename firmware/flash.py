@@ -3,7 +3,7 @@
     python firmware/flash.py                 # cài thư viện + biên dịch + tự tìm cổng USB + nạp
     python firmware/flash.py --monitor       # nạp xong mở Serial Monitor (115200)
     python firmware/flash.py --compile-only  # chỉ kiểm tra biên dịch (không cần cắm ESP32)
-    python firmware/flash.py --port /dev/cu.usbserial-0001
+    python firmware/flash.py --port /dev/cu.usbserial-0001   # Windows: --port COM3
 
 Không dùng arduino-cli? Mở firmware/fall_belt/fall_belt.ino bằng Arduino IDE (xem README).
 """
@@ -34,7 +34,10 @@ def cli(*args: str, check: bool = True, capture: bool = False) -> subprocess.Com
 
 def ensure_toolchain() -> None:
     if not shutil.which("arduino-cli"):
-        sys.exit("Chưa có arduino-cli: `brew install arduino-cli` (macOS) — hoặc dùng Arduino IDE (xem README).")
+        sys.exit(
+            "Chưa có arduino-cli: `brew install arduino-cli` (macOS) / `winget install ArduinoSA.CLI` (Windows),"
+            " mở lại terminal rồi chạy lại — hoặc dùng Arduino IDE (xem README)."
+        )
     cores = cli("core", "list", "--format", "json", capture=True).stdout
     if '"esp32:esp32"' not in cores:
         print("Cài bộ công cụ ESP32 (lần đầu, ~vài phút)...")
@@ -69,10 +72,13 @@ def find_port() -> str | None:
     usb = [
         p for p in ports if any(k in p.lower() for k in ("usbserial", "usbmodem", "slab", "wchusb", "ttyusb", "ttyacm"))
     ]
+    usb += [p for p in ports if p.upper().startswith("COM") and p.upper() != "COM1"]  # Windows (COM1 = cổng onboard)
     return (usb or [None])[0]
 
 
 def main() -> None:
+    if sys.platform == "win32":
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--port")
     ap.add_argument("--compile-only", action="store_true")

@@ -44,6 +44,7 @@ def find_mosquitto() -> str | None:
         "/opt/homebrew/opt/mosquitto/sbin/mosquitto",
         "/usr/local/opt/mosquitto/sbin/mosquitto",
         "/usr/sbin/mosquitto",
+        r"C:\Program Files\mosquitto\mosquitto.exe",
     ):
         if c and Path(c).exists():
             return c
@@ -66,19 +67,34 @@ def main() -> None:
     ap.add_argument("--no-browser", action="store_true")
     args = ap.parse_args()
 
+    if os.name == "nt":  # Windows: in tiếng Việt + màu ANSI trên console
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        os.system("")
     py = sys.executable
-    env = {**os.environ, "PYTHONUNBUFFERED": "1"}
+    env = {**os.environ, "PYTHONUNBUFFERED": "1", "PYTHONUTF8": "1"}
     procs: list[tuple[str, subprocess.Popen]] = []
 
     def start(name: str, cmd: list[str], **kw) -> None:
-        p = subprocess.Popen(cmd, cwd=ROOT, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, **kw)
+        p = subprocess.Popen(
+            cmd,
+            cwd=ROOT,
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            encoding="utf-8",
+            errors="replace",
+            **kw,
+        )
         procs.append((name, p))
         threading.Thread(target=pipe, args=(name, p), daemon=True).start()
 
     if S.MQTT_HOST in ("localhost", "127.0.0.1") and not port_open("127.0.0.1", S.MQTT_PORT):
         exe = find_mosquitto()
         if not exe:
-            sys.exit("Chưa cài Mosquitto: chạy `brew install mosquitto` (macOS) hoặc `docker compose up -d`")
+            sys.exit(
+                "Chưa cài Mosquitto: `brew install mosquitto` (macOS)"
+                " / `winget install EclipseFoundation.Mosquitto` (Windows)"
+            )
         start("broker", [exe, "-c", str(ROOT / "mosquitto" / "mosquitto.conf")])
         for _ in range(30):
             if port_open("127.0.0.1", S.MQTT_PORT):
