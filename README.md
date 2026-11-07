@@ -100,6 +100,8 @@ Lệnh này tự diễn 3 kịch bản demo. Bỏ `--camera-sim` để dùng web
 
 ![Sơ đồ đấu dây ESP32 với MPU6050, OLED, còi, 2 LED và nút bấm](docs/wiring.svg)
 
+**Xem và chạy thử mạch trên Wokwi:** vào [wokwi.com/projects/new/esp32](https://wokwi.com/projects/new/esp32), dán nội dung [`wokwi/diagram.json`](wokwi/diagram.json) vào tab *diagram.json* và [`wokwi/sketch.ino`](wokwi/sketch.ino) vào tab *sketch.ino*, rồi bấm ▶. Serial phải in `I2C 0x3C` và `I2C 0x68`; LED nháy luân phiên, còi kêu, bấm nút thì in `btn=0`.
+
 Bảng chân chi tiết ở **mục 2.1**. Lắp trên breadboard theo thứ tự sau:
 1. Cắm ESP32 vào giữa breadboard. Nối chân **3V3** ra thanh nguồn (+) và chân **GND** ra thanh (−).
 2. **MPU6050** và **OLED**: VCC → thanh (+), GND → thanh (−), SCL → **GPIO22**, SDA → **GPIO21**. Hai module dùng chung 2 dây SCL/SDA. Tuyệt đối **không cấp 5V/VIN** cho hai module này.
@@ -344,6 +346,7 @@ python tinyml/sisfall_to_ei.py --sisfall-dir data/sisfall_raw --hard-negatives
 |---|---|
 | `firmware/fall_belt/` | Firmware: `detector`, `belt_logic`, `orientation` (C++ thuần, có test) · `net` (WiFi/MQTT/mDNS) · `display` · `settings` · `config.h` |
 | `firmware/flash.py` | Nạp firmware một lệnh |
+| `wokwi/` | Sơ đồ mạch cho Wokwi (`diagram.json`) + sketch thử linh kiện |
 | `server/` | `fusion.py` (luật hợp nhất), `main.py` (MQTT + dashboard), `discovery.py` (mDNS), `telegram.py`, `static/index.html` |
 | `vision/` | Camera: `posture.py` (luật tư thế), `backends.py` (MediaPipe / YOLO tùy chọn) |
 | `tinyml/` | Chuyển đổi, đánh giá model và bộ phát hiện trên SisFall · `belt_collect.py`: thu dữ liệu từ đai để fine-tune |

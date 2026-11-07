@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 import threading
 import time
 
@@ -55,8 +56,15 @@ def draw(frame, kps, posture, conf, dbg, fps, min_score):
     return frame
 
 
-def open_source(src: str):
+def open_source(src: str, wait_s: float = 60):
     cap = cv2.VideoCapture(int(src) if src.isdigit() else src)
+    if not cap.isOpened() and src.isdigit() and sys.platform == "darwin":
+        # Lần đầu macOS hiện hộp thoại xin quyền Camera: chờ người dùng bấm Allow rồi thử lại
+        print("Đang chờ quyền Camera: bấm Allow nếu macOS hỏi...", flush=True)
+        deadline = time.time() + wait_s
+        while not cap.isOpened() and time.time() < deadline:
+            time.sleep(1)
+            cap = cv2.VideoCapture(int(src))
     if not cap.isOpened():
         raise SystemExit(
             f"Không mở được camera '{src}'. Trên macOS: cấp quyền Camera cho Terminal "

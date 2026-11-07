@@ -1,0 +1,275 @@
+{
+  "version": 1,
+  "author": "fall-detection",
+  "editor": "wokwi",
+  "parts": [
+    {
+      "type": "wokwi-esp32-devkit-v1",
+      "id": "esp",
+      "top": 0,
+      "left": 0,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-mpu6050",
+      "id": "imu",
+      "top": 17.7,
+      "left": 230,
+      "rotate": 270,
+      "attrs": {}
+    },
+    {
+      "type": "board-ssd1306",
+      "id": "oled",
+      "top": 150,
+      "left": 130,
+      "attrs": {
+        "i2cAddress": "0x3c"
+      }
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "btn",
+      "top": -50,
+      "left": -160,
+      "attrs": {
+        "color": "red",
+        "label": "HUY / CALIB",
+        "bounce": "1"
+      }
+    },
+    {
+      "type": "wokwi-buzzer",
+      "id": "buzzer",
+      "top": -10,
+      "left": -170,
+      "attrs": {
+        "volume": "0.2"
+      }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led_red",
+      "top": 110,
+      "left": -190,
+      "attrs": {
+        "color": "red"
+      }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r_red",
+      "top": 159.3,
+      "left": -130,
+      "attrs": {
+        "value": "220"
+      }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led_green",
+      "top": 200,
+      "left": -190,
+      "attrs": {
+        "color": "limegreen"
+      }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r_green",
+      "top": 249.3,
+      "left": -130,
+      "attrs": {
+        "value": "220"
+      }
+    }
+  ],
+  "connections": [
+    [
+      "esp:TX0",
+      "$serialMonitor:RX",
+      "",
+      []
+    ],
+    [
+      "esp:RX0",
+      "$serialMonitor:TX",
+      "",
+      []
+    ],
+    [
+      "esp:D22",
+      "imu:SCL",
+      "gold",
+      []
+    ],
+    [
+      "esp:D21",
+      "imu:SDA",
+      "blue",
+      [
+        "h108.7",
+        "v-19.3"
+      ]
+    ],
+    [
+      "oled:SCL",
+      "esp:D22",
+      "gold",
+      [
+        "v-122.5"
+      ]
+    ],
+    [
+      "oled:SDA",
+      "esp:D21",
+      "blue",
+      [
+        "v-93.6"
+      ]
+    ],
+    [
+      "oled:GND",
+      "esp:GND.1",
+      "black",
+      [
+        "v-7.5"
+      ]
+    ],
+    [
+      "esp:3V3",
+      "oled:VCC",
+      "red",
+      [
+        "h13.7",
+        "v-18.5",
+        "h62.6"
+      ]
+    ],
+    [
+      "esp:3V3",
+      "imu:VCC",
+      "red",
+      [
+        "h13.7",
+        "v91.5",
+        "h205",
+        "v-260",
+        "h-95",
+        "v24.8"
+      ]
+    ],
+    [
+      "esp:GND.2",
+      "imu:GND",
+      "black",
+      [
+        "h-25",
+        "v121",
+        "h350",
+        "v-290",
+        "h-115",
+        "v44.4"
+      ]
+    ],
+    [
+      "esp:D33",
+      "btn:1.r",
+      "violet",
+      [
+        "h-35",
+        "v-118.7"
+      ]
+    ],
+    [
+      "btn:2.l",
+      "esp:GND.2",
+      "black",
+      [
+        "h-100",
+        "v288",
+        "h240",
+        "v-121"
+      ]
+    ],
+    [
+      "buzzer:2",
+      "esp:D25",
+      "magenta",
+      [
+        "v17.3"
+      ]
+    ],
+    [
+      "buzzer:1",
+      "esp:GND.2",
+      "black",
+      [
+        "v26",
+        "h-117",
+        "v170",
+        "h240",
+        "v-121"
+      ]
+    ],
+    [
+      "led_red:A",
+      "r_red:1",
+      "orange",
+      [
+        "v13.0"
+      ]
+    ],
+    [
+      "r_red:2",
+      "esp:D26",
+      "orange",
+      [
+        "h26.2",
+        "v-64.0"
+      ]
+    ],
+    [
+      "led_red:C",
+      "esp:GND.2",
+      "black",
+      [
+        "v15",
+        "h-85",
+        "v103",
+        "h240",
+        "v-121"
+      ]
+    ],
+    [
+      "led_green:A",
+      "r_green:1",
+      "green",
+      [
+        "v13.0"
+      ]
+    ],
+    [
+      "r_green:2",
+      "esp:D27",
+      "green",
+      [
+        "h41.2",
+        "v-144.2"
+      ]
+    ],
+    [
+      "led_green:C",
+      "esp:GND.2",
+      "black",
+      [
+        "v15",
+        "h-85",
+        "v13",
+        "h240",
+        "v-121"
+      ]
+    ]
+  ],
+  "dependencies": {}
+}
