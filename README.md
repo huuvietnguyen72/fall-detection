@@ -97,7 +97,16 @@ python -m simulator.run_scenarios
 Lệnh này tự diễn 3 kịch bản demo. Bỏ `--camera-sim` để dùng webcam thật (chi tiết ở mục 1).
 
 ### Bước 3. Đấu dây
-Theo bảng ở **mục 2.1**. Kiểm tra kỹ: MPU6050 và OLED cắm vào **3V3**, không cắm vào 5V; SDA → GPIO21, SCL → GPIO22.
+
+![Sơ đồ đấu dây ESP32 với MPU6050, OLED, còi, 2 LED và nút bấm](docs/wiring.svg)
+
+Bảng chân chi tiết ở **mục 2.1**. Lắp trên breadboard theo thứ tự sau:
+1. Cắm ESP32 vào giữa breadboard. Nối chân **3V3** ra thanh nguồn (+) và chân **GND** ra thanh (−).
+2. **MPU6050** và **OLED**: VCC → thanh (+), GND → thanh (−), SCL → **GPIO22**, SDA → **GPIO21**. Hai module dùng chung 2 dây SCL/SDA. Tuyệt đối **không cấp 5V/VIN** cho hai module này.
+3. **Còi**: chân (+) → GPIO25, chân (−) → thanh (−). Nếu dùng module còi 3 chân (VCC/GND/I/O): VCC → thanh (+), GND → thanh (−), I/O → GPIO25. Nếu còi kêu liên tục khi bình thường, đổi `BUZZER_ACTIVE_HIGH` thành `0` trong `config.h`.
+4. **LED**: GPIO26 → điện trở 220 Ω → chân dài LED đỏ, chân ngắn → thanh (−). Làm tương tự với GPIO27 và LED xanh.
+5. **Nút bấm**: một chân → GPIO33, chân chéo đối diện → thanh (−). Không cần điện trở vì firmware bật pull-up nội.
+6. **Khi đeo**: cấp nguồn bằng sạc dự phòng qua cổng micro-USB là đơn giản nhất. Gắn MPU6050 cố định trước bụng theo hướng ở mục 2.1, sao cho cảm biến không lắc lư so với người.
 
 ### Bước 4. Nạp firmware
 Cắm ESP32 bằng cáp USB **có dây dữ liệu** (cáp chỉ sạc sẽ không nhận). Sau đó chạy:
@@ -221,6 +230,8 @@ python -m simulator.run_scenarios
 ## 2. Khi có phần cứng
 
 ### 2.1 Đấu dây (ESP32 DevKit V1)
+
+Sơ đồ hình: [docs/wiring.svg](docs/wiring.svg) (cũng có ở **Bước 3**).
 
 | Linh kiện | Chân linh kiện | ESP32 |
 |---|---|---|
