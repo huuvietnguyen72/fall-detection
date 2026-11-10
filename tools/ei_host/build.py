@@ -59,7 +59,10 @@ def _compile_library(zip_path: Path, out: Path) -> Path:
     with zipfile.ZipFile(zip_path) as z:
         z.extractall(out / "lib")
     src = next((out / "lib").glob("*/src"))
-    sources = [p for ext in ("*.cpp", "*.cc", "*.c") for p in src.rglob(ext) if not any(s in str(p) for s in SKIP)]
+    # as_posix(): SKIP dùng "/" -> trên Windows str(p) dùng "\" sẽ không lọc được (và CMSIS vượt MAX_PATH)
+    sources = [
+        p for ext in ("*.cpp", "*.cc", "*.c") for p in src.rglob(ext) if not any(s in p.as_posix() for s in SKIP)
+    ]
     sources.append(HERE / "porting.cpp")
 
     def compile_one(item):
@@ -77,7 +80,7 @@ def build(zip_path: Path, target: str = "runner") -> Path:
     zip_path = zip_path.resolve()
     out = ROOT / "build" / "ei_host" / zip_path.stem
     src = _compile_library(zip_path, out)
-    exe = out / target
+    exe = out / (target + (".exe" if sys.platform == "win32" else ""))  # MinGW tự thêm .exe
     inputs = TARGETS[target]
     deps = [*inputs, *FIRMWARE.glob("*.h"), out / "lib_obj" / ".done"]
     if exe.exists() and exe.stat().st_mtime > max(p.stat().st_mtime for p in deps):

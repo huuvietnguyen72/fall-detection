@@ -11,7 +11,15 @@
 #include "detector.h"
 #include "ei_glue.h"
 
+#ifdef _WIN32
+#include <fcntl.h>
+#include <io.h>
+#endif
+
 int main(int argc, char **argv) {
+#ifdef _WIN32
+    _setmode(_fileno(stdin), _O_BINARY);  // stdin nhị phân: chế độ văn bản sẽ cắt ở 0x1A và đổi \r\n
+#endif
     fall::DetectorConfig cfg;
     if (argc > 1) cfg.trigger_g = (float)atof(argv[1]);
     if (argc > 2) cfg.ai_threshold = (float)atof(argv[2]);
