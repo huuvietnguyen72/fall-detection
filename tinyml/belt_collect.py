@@ -1,6 +1,7 @@
-"""Fine-tune bằng chính đai lưng: thu dữ liệu qua USB -> CSV Edge Impulse -> chấm ngưỡng firmware.
+"""Fine-tune bằng chính đai lưng: thu dữ liệu qua USB hoặc WiFi -> CSV Edge Impulse -> chấm ngưỡng firmware.
 
     python tinyml/belt_collect.py record --label Fall      # mỗi lần Enter = 1 lần thử (mặc định 8 s)
+    python tinyml/belt_collect.py record --label Fall --port 192.168.1.20   # qua WiFi (IP đai, hoặc belt01.local)
     python tinyml/belt_collect.py record --label Normal    # đi, ngồi phịch, cúi, nhảy, đặt đai xuống bàn...
     python tinyml/belt_collect.py eval                     # chạy ĐÚNG mã firmware trên các lần thử đã ghi
     python tinyml/belt_collect.py eval --grid              # so sánh nhiều bộ ngưỡng
@@ -27,12 +28,34 @@ from stream_eval import DEFAULT_MODEL, HZ, G, build, run_firmware_detector  # no
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "data" / "belt"
 ESP_USB_VIDS = {0x10C4, 0x1A86, 0x0403, 0x303A}  # CP210x, CH340, FTDI, Espressif
+DATA_TCP_PORT = 2323  # khớp DATA_TCP_PORT trong firmware/fall_belt/config.h
 
 
 # ----------------------------------------------------------------------------- thu dữ liệu
+def wifi_url(port: str | None) -> str | None:
+    """`192.168.1.20` / `belt01.local` / `socket://...` -> URL TCP của đai; cổng COM / thiết bị USB -> None."""
+    if not port:
+        return None
+    if "://" in port:
+        return port
+    if port.upper().startswith("COM") or port.startswith("/dev/"):
+        return None
+    return f"socket://{port}" if ":" in port else f"socket://{port}:{DATA_TCP_PORT}"
+
+
 def open_serial(port: str | None):
     import serial
     from serial.tools import list_ports
+
+    url = wifi_url(port)
+    if url:  # thu qua WiFi: firmware mở cổng TCP DATA_TCP_PORT, giao thức y hệt Serial
+        try:
+            ser = serial.serial_for_url(url, timeout=0.2)
+        except serial.SerialException as e:
+            sys.exit(f"Không kết nối được đai qua WiFi ({url}): {e}\n"
+                     "Kiểm tra đai đã vào WiFi (gõ `info` qua USB để xem IP), máy tính cùng mạng.")
+        print(f"Đã kết nối đai qua WiFi: {url}")
+        return ser
 
     if not port:
         found = [p.device for p in list_ports.comports() if p.vid in ESP_USB_VIDS]
@@ -66,11 +89,12 @@ def streaming(ser, seconds: float = 1.0) -> bool:
 
 
 def start_data_mode(ser) -> None:
+    print("Đang bật luồng dữ liệu của đai (vài giây)...", flush=True)
     if streaming(ser):
         return
     ser.write(b"data\n")  # lệnh `data` bật/tắt luồng CSV của firmware
     if not streaming(ser, 2):
-        sys.exit("Đai không gửi dữ liệu. Kiểm tra Serial Monitor khác đã đóng chưa, và firmware đã nạp đúng.")
+        sys.exit("Đai không gửi dữ liệu. Kiểm tra Serial Monitor khác đã đóng chưa, và firmware đã nạp đúng (bản có thu qua WiFi nếu dùng IP).")
 
 
 def record_trial(ser, seconds: float) -> np.ndarray:
@@ -93,6 +117,10 @@ def save_trial(label: str, x: np.ndarray) -> None:
     peaks = impact_peaks(x)
     mag = np.linalg.norm(x[:, :3], axis=1) / G
     if label == "Fall":
+        early = int(np.argmax(mag)) / HZ
+        if peaks and early < 2.0:  # bộ phát hiện cần [-2 s, -1 s] trước đỉnh để so tư thế
+            print(f"  ! Ngã sớm quá (va chạm ở {early:.1f} s, cần >= 2 s): `eval` sẽ không chấm được lần này."
+                  " Lần sau đứng yên 2-3 s sau chữ GHI rồi mới ngã.")
         if not peaks:
             print(f"  ! Không có va chạm > 2 g (đỉnh {mag.max():.2f} g): đai sẽ không xét lần này -> không xuất cửa sổ")
             return
@@ -109,24 +137,39 @@ def save_trial(label: str, x: np.ndarray) -> None:
 def cmd_record(args) -> None:
     ser = open_serial(args.port)
     start_data_mode(ser)
+    # Qua WiFi: chỉ bật luồng trong lúc ghi. Nếu để chạy khi đang chờ Enter, TCP bị nghẽn và đai giữ lại
+    # ~2 s mẫu CŨ trong bộ đệm gửi -> lần ghi sau bắt đầu bằng dữ liệu cũ + một khoảng hụt.
+    # (Qua USB không bị vì phần thừa bị bỏ, nên giữ luồng chạy liên tục như cũ.)
+    pause_between = wifi_url(args.port) is not None
+    on = True
+
+    def stream(want: bool) -> None:
+        nonlocal on
+        if on != want:
+            ser.write(b"data\n")  # lệnh `data` bật/tắt luồng CSV
+            on = want
+
     n = 0
     try:
         while True:
+            if pause_between:
+                stream(False)
             k = input(f"\n[{args.label} #{n + 1}] Enter = ghi {args.seconds:.0f} s, q = thoát: ").strip().lower()
             if k == "q":
                 break
+            stream(True)
             for i in (3, 2, 1):
                 print(f"  {i}...", flush=True)
                 time.sleep(1)
             print("  GHI - đứng yên 2 s rồi thực hiện động tác", flush=True)
-            x = record_trial(ser, args.seconds)
+            x = record_trial(ser, args.seconds)  # tự xóa phần nhận trong lúc đếm ngược
             if len(x) < int(HZ * args.seconds):
-                print(f"  ! Chỉ nhận {len(x)}/{HZ * args.seconds:.0f} mẫu: đai gửi thiếu (dây USB?) -> bỏ lần này")
+                print(f"  ! Chỉ nhận {len(x)}/{HZ * args.seconds:.0f} mẫu: đai gửi thiếu (dây USB / WiFi yếu?) -> bỏ lần này")
                 continue
             save_trial(args.label, x)
             n += 1
     finally:
-        ser.write(b"data\n")  # tắt luồng CSV
+        stream(False)  # tắt luồng CSV
         ser.close()
     print(f"\nXong {n} lần thử. Upload thư mục {OUT / 'ei'} lên Edge Impulse (Data acquisition -> Upload data).")
 
@@ -176,7 +219,7 @@ def main() -> None:
     rec = sub.add_parser("record", help="thu dữ liệu từ đai")
     rec.add_argument("--label", required=True, choices=["Fall", "Normal"])
     rec.add_argument("--seconds", type=float, default=8.0)
-    rec.add_argument("--port")
+    rec.add_argument("--port", help="COMx / /dev/... (USB) hoặc IP / belt01.local (WiFi); bỏ trống = tự tìm USB")
     ev = sub.add_parser("eval", help="chấm ngưỡng firmware trên dữ liệu đã thu")
     ev.add_argument("--model", type=Path, default=DEFAULT_MODEL)
     ev.add_argument("--trigger", type=float, default=2.0)

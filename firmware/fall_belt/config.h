@@ -17,6 +17,7 @@
 #define BELT_ID         "belt01"          // phải trùng BELT_ID trong .env của server
 #define SETUP_AP_NAME   "FallBelt-Setup"  // tên WiFi phát ra khi cần cấu hình
 #define SETUP_AP_PASSWORD "fallbelt123"   // mật khẩu WiFi cấu hình (>= 8 ký tự)
+#define DATA_TCP_PORT   2323              // thu dữ liệu fine-tune qua WiFi: belt_collect.py --port <IP đai>; 0 = tắt
 
 // ---------- Model AI ----------
 // 1 = dùng model Edge Impulse (cài firmware/ei_models/Fall-Detection-SisFall_inferencing.zip vào Arduino IDE)
