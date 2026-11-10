@@ -121,6 +121,11 @@ void begin(Settings *settings, CommandHandler on_command, bool force_portal) {
 void open_portal() {
     Serial.printf("[NET] Mo cau hinh: ket noi WiFi '%s' (mat khau %s) roi vao http://192.168.4.1\n", SETUP_AP_NAME,
                   SETUP_AP_PASSWORD);
+    // Dừng thử kết nối WiFi đã lưu trước (giữ nguyên thông tin): nếu STA đang "connecting", WiFiManager không
+    // cấu hình được -> ESP-IDF báo "sta is connecting, cannot set config" liên tục và AP cấu hình không lên.
+    if (mqtt.connected()) mqtt.disconnect();
+    WiFi.disconnect(false, false);
+    delay(100);
     wm.startConfigPortal(SETUP_AP_NAME, SETUP_AP_PASSWORD);
     portal_opened_at = millis();
 }
