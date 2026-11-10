@@ -12,7 +12,6 @@
  *           + model: firmware/ei_models/Fall-Detection-SisFall_inferencing.zip (Sketch > Include Library > Add .ZIP)
  * Board: ESP32 Dev Module.  Partition Scheme: mặc định là đủ.
  */
-#include <Adafruit_MPU6050.h>
 #include <Wire.h>
 
 #include <atomic>
@@ -32,7 +31,6 @@ struct RawSample {
     float g[3];  // rad/s
 };
 
-static Adafruit_MPU6050 mpu;
 static QueueHandle_t sample_queue;
 static SemaphoreHandle_t i2c_mutex;
 static std::atomic<uint32_t> missed_samples{0}, sensor_errors{0};
@@ -84,12 +82,51 @@ static bool read_mpu(RawSample &s) {
         all_ff &= v == 0xFF;
     }
     if (all_ff) return false;  // bus treo / mất cảm biến
-    auto word = [&](int i) { return (int16_t)((b[i] << 8) | b[i + 1]); };
+    // Không đặt tên "word": Arduino.h có macro word(...) -> makeWord(), sẽ trả về chính chỉ số byte.
+    auto be16 = [&](int i) { return (int16_t)((b[i] << 8) | b[i + 1]); };
     for (int k = 0; k < 3; k++) {
-        s.a[k] = word(k * 2) * kAccel;
-        s.g[k] = word(8 + k * 2) * kGyro;  // bỏ qua 2 byte nhiệt độ
+        s.a[k] = be16(k * 2) * kAccel;
+        s.g[k] = be16(8 + k * 2) * kGyro;  // bỏ qua 2 byte nhiệt độ
     }
     return true;
+}
+
+// Khởi tạo cảm biến bằng thanh ghi trực tiếp: chấp nhận cả MPU6050 thật (WHO_AM_I 0x68) lẫn các module
+// "GY-521" dùng chip MPU6500/MPU9250 (0x70/0x71/...) mà Adafruit_MPU6050 từ chối. Bản đồ thanh ghi
+// dữ liệu (0x3B..0x48) và cấu hình dải đo giống nhau giữa các chip này.
+static uint8_t mpu_who_am_i = 0;
+
+static bool mpu_write(uint8_t reg, uint8_t val) {
+    Wire.beginTransmission(MPU_ADDR);
+    Wire.write(reg);
+    Wire.write(val);
+    return Wire.endTransmission() == 0;
+}
+
+static int mpu_read(uint8_t reg) {
+    Wire.beginTransmission(MPU_ADDR);
+    Wire.write(reg);
+    if (Wire.endTransmission(false) != 0 || Wire.requestFrom((uint8_t)MPU_ADDR, (uint8_t)1) != 1) return -1;
+    return Wire.read();
+}
+
+static bool mpu_begin() {
+    const int who = mpu_read(0x75);  // WHO_AM_I
+    if (who < 0) return false;
+    mpu_who_am_i = (uint8_t)who;
+    const bool is_6050 = who == 0x68 || who == 0x98;  // 0x98: một số bản clone MPU6050
+    const bool is_6500 = who == 0x70 || who == 0x71 || who == 0x72 || who == 0x73 || who == 0x74;
+    if (!is_6050 && !is_6500) return false;
+    if (!mpu_write(0x6B, 0x80)) return false;  // PWR_MGMT_1: reset
+    delay(100);
+    bool ok = mpu_write(0x6B, 0x01);           // thức dậy, clock PLL gyro X
+    delay(10);
+    ok &= mpu_write(0x19, 0x00);               // SMPLRT_DIV
+    ok &= mpu_write(0x1A, 0x04);               // CONFIG: DLPF ~21 Hz (MPU6050 BAND_21_HZ) / 20 Hz gyro (MPU6500)
+    ok &= mpu_write(0x1B, 0x18);               // GYRO_CONFIG: ±2000 °/s
+    ok &= mpu_write(0x1C, 0x18);               // ACCEL_CONFIG: ±16 g
+    if (is_6500) ok &= mpu_write(0x1D, 0x04);  // ACCEL_CONFIG2 (chỉ MPU6500): lọc gia tốc ~21 Hz
+    return ok;
 }
 
 static void sampling_task(void *) {
@@ -349,12 +386,9 @@ void setup() {
 
     // --- Tự kiểm tra phần cứng ---
     const bool oled_ok = ui::begin();
-    const bool mpu_ok = mpu.begin(MPU_ADDR, &Wire);
-    if (mpu_ok) {
-        mpu.setAccelerometerRange(MPU6050_RANGE_16_G);  // giống SisFall: ADXL345 ±16g
-        mpu.setGyroRange(MPU6050_RANGE_2000_DEG);       // ITG3200 ±2000°/s
-        mpu.setFilterBandwidth(MPU6050_BAND_21_HZ);     // chống răng cưa cho 50 Hz
-    }
+    // ±16 g giống SisFall (ADXL345), ±2000 °/s (ITG3200), lọc ~21 Hz chống răng cưa cho 50 Hz
+    const bool mpu_ok = mpu_begin();
+    Serial.printf("IMU WHO_AM_I = 0x%02X\n", mpu_who_am_i);
     const char *model = fall::ei_model_name();
     char l_model[24];
     snprintf(l_model, sizeof(l_model), "AI: %.16s", model[0] ? model : "chi dung luat");
