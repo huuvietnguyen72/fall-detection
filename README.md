@@ -24,7 +24,7 @@
 | Python **3.11** (MediaPipe chưa hỗ trợ 3.13+) | `brew install python@3.11` | `winget install Python.Python.3.11` |
 | MQTT broker Mosquitto | `brew install mosquitto` | `winget install EclipseFoundation.Mosquitto` |
 | arduino-cli (để nạp ESP32) | `brew install arduino-cli` | `winget install ArduinoSA.CLI`, hoặc tải bản Windows ở [trang cài đặt chính thức](https://arduino.github.io/arduino-cli/latest/installation/) |
-| Trình biên dịch C++ (chỉ cần cho lệnh chấm ngưỡng ở bước 7) | `xcode-select --install` | Dùng [WSL](https://learn.microsoft.com/windows/wsl/install) (Ubuntu) hoặc chạy bước 7.2 trên máy Mac |
+| Trình biên dịch C++ (chỉ cần cho lệnh chấm ngưỡng ở bước 7) | `xcode-select --install` | [MSYS2](https://www.msys2.org) rồi `pacman -S mingw-w64-ucrt-x86_64-gcc`; trước khi chấm chạy `$env:Path = "C:\msys64\ucrt64\bin;$env:Path"` |
 | Driver USB của ESP32 | Thường có sẵn | Cài **CP210x** ([Silicon Labs](https://www.silabs.com/developer-tools/usb-to-uart-bridge-vcp-drivers)) hoặc **CH340** ([WCH](https://www.wch-ic.com/downloads/CH341SER_EXE.html)), tùy chip in trên board |
 
 Cài xong trên Windows thì **đóng PowerShell, mở lại** để nhận lệnh mới. Thêm 2 việc riêng cho Windows:
@@ -100,14 +100,16 @@ Lệnh này tự diễn 3 kịch bản demo. Bỏ `--camera-sim` để dùng web
 
 ![Sơ đồ đấu dây ESP32 với MPU6050, OLED, còi, 2 LED và nút bấm](docs/wiring.svg)
 
+> ⚠️ Hình trên còn vẽ theo chân cũ (nút GPIO33, LED đỏ GPIO26, LED xanh GPIO27). Chân hiện tại của firmware: **nút GPIO4, LED đỏ GPIO27, LED xanh GPIO26**, theo bảng ở mục 2.1 và [`config.h`](firmware/fall_belt/config.h).
+
 **Xem và chạy thử mạch trên Wokwi:** vào [wokwi.com/projects/new/esp32](https://wokwi.com/projects/new/esp32), dán nội dung [`wokwi/diagram.json`](wokwi/diagram.json) vào tab *diagram.json* và [`wokwi/sketch.ino`](wokwi/sketch.ino) vào tab *sketch.ino*, rồi bấm ▶. Serial phải in `I2C 0x3C` và `I2C 0x68`; LED nháy luân phiên, còi kêu, bấm nút thì in `btn=0`.
 
 Bảng chân chi tiết ở **mục 2.1**. Lắp trên breadboard theo thứ tự sau:
 1. Cắm ESP32 vào giữa breadboard. Nối chân **3V3** ra thanh nguồn (+) và chân **GND** ra thanh (−).
 2. **MPU6050** và **OLED**: VCC → thanh (+), GND → thanh (−), SCL → **GPIO22**, SDA → **GPIO21**. Hai module dùng chung 2 dây SCL/SDA. Tuyệt đối **không cấp 5V/VIN** cho hai module này.
 3. **Còi**: chân (+) → GPIO25, chân (−) → thanh (−). Nếu dùng module còi 3 chân (VCC/GND/I/O): VCC → thanh (+), GND → thanh (−), I/O → GPIO25. Nếu còi kêu liên tục khi bình thường, đổi `BUZZER_ACTIVE_HIGH` thành `0` trong `config.h`.
-4. **LED**: GPIO26 → điện trở 220 Ω → chân dài LED đỏ, chân ngắn → thanh (−). Làm tương tự với GPIO27 và LED xanh.
-5. **Nút bấm**: một chân → GPIO33, chân chéo đối diện → thanh (−). Không cần điện trở vì firmware bật pull-up nội.
+4. **LED**: GPIO27 → điện trở 220 Ω → chân dài LED đỏ, chân ngắn → thanh (−). Làm tương tự với GPIO26 và LED xanh.
+5. **Nút bấm**: một chân → GPIO4, chân chéo đối diện → thanh (−). Không cần điện trở vì firmware bật pull-up nội.
 6. **Khi đeo**: cấp nguồn bằng sạc dự phòng qua cổng micro-USB là đơn giản nhất. Gắn MPU6050 cố định trước bụng theo hướng ở mục 2.1, sao cho cảm biến không lắc lư so với người.
 
 ### Bước 4. Nạp firmware
@@ -138,14 +140,15 @@ Làm lần lượt từ 7.1. Đa số trường hợp chỉ cần 7.1 và 7.2.
 
 **7.2. Thu dữ liệu từ đai và chỉnh ngưỡng.** Bước này cho biết với chính đai, người đeo và cách lắp của bạn, firmware bắt được bao nhiêu cú ngã và báo nhầm bao nhiêu.
 
-Đóng Serial Monitor, giữ đai cắm USB vào máy tính (dùng cáp dài, hoặc ngã gần máy tính), rồi chạy:
+**Thu qua WiFi (khuyên dùng, không vướng dây):** cấp nguồn đai bằng sạc dự phòng, đai và máy tính chung WiFi. Lấy IP của đai bằng lệnh `info` (qua USB) hoặc ô *Đai lưng* trên dashboard, rồi chạy:
 ```bash
-python tinyml/belt_collect.py record --label Fall
+python tinyml/belt_collect.py record --label Fall --port 192.168.1.20
 ```
+`--port` nhận IP đai, `belt01.local`, hoặc cổng COM / `/dev/...` nếu thu qua USB (bỏ trống = tự tìm USB; khi đó đóng Serial Monitor trước). Qua WiFi, firmware mở cổng TCP `DATA_TCP_PORT` (2323, trong `config.h`) và chỉ nhận lệnh `data` qua cổng này.
 Mỗi lần nhấn Enter, máy đếm ngược 3 giây rồi ghi 8 giây. Trong lúc ghi: **đứng yên khoảng 2 giây → ngã xuống đệm → nằm yên đến khi hết giờ**. Nên thu ít nhất 15 lần, đủ các kiểu: ngã về trước, ngã ngửa, ngã sang hai bên, khuỵu gối. Gõ `q` để kết thúc.
 
 ```bash
-python tinyml/belt_collect.py record --label Normal
+python tinyml/belt_collect.py record --label Normal --port 192.168.1.20
 ```
 Tương tự, thu ít nhất 20 lần sinh hoạt dễ gây nhầm: ngồi phịch xuống ghế, cúi nhặt đồ, nhảy, chạy bộ, nằm xuống giường, tháo đai đặt mạnh xuống bàn.
 
@@ -156,7 +159,8 @@ python tinyml/belt_collect.py eval --grid
 Lệnh này chạy **đúng mã firmware và model** trên từng lần thử. Bảng kết quả có các cột: đỉnh va chạm (g), xác suất AI, góc nghiêng thân, kết luận, và đánh dấu `<- SAI` ở lần thử sai. Phía dưới là tỉ lệ bắt ngã và báo nhầm cho 27 bộ ngưỡng. Chọn bộ ngưỡng phù hợp, sửa `TRIGGER_G`, `AI_THRESHOLD`, `MIN_TILT_DEG` trong [`firmware/fall_belt/config.h`](firmware/fall_belt/config.h), rồi nạp lại bằng bước 4.
 
 Mẹo đọc kết quả:
-- Ngã bị bỏ sót vì đỉnh dưới 2 g (ngã lên đệm dày): giảm `TRIGGER_G` xuống 1.8.
+- Ngã bị bỏ sót vì đỉnh dưới `TRIGGER_G` (ngã lên đệm dày): giảm `TRIGGER_G` thêm (mặc định 1.8; dữ liệu đai thật: 2.0 → 1.8 tăng bắt ngã 88% → 96%, báo nhầm không đổi).
+- Ngã bị bỏ sót và script báo `Ngã sớm quá`: lần thử đó ngã trước giây thứ 2 nên `eval` không chấm được (bộ phát hiện cần 2 s trước va chạm). Thu lại, đứng yên 2-3 s sau chữ GHI.
 - Bỏ sót vì AI thấp: giảm `AI_THRESHOLD`, hoặc làm bước 7.3.
 - Báo nhầm khi đặt đai xuống bàn: đã có camera hỗ trợ, nên chỉ tăng ngưỡng nếu nhầm quá nhiều.
 
@@ -237,12 +241,12 @@ Sơ đồ hình: [docs/wiring.svg](docs/wiring.svg) (cũng có ở **Bước 3**
 
 | Linh kiện | Chân linh kiện | ESP32 |
 |---|---|---|
-| MPU6050 (GY-521) | VCC / GND / SDA / SCL | **3V3** / GND / GPIO21 / GPIO22 (AD0 để trống → địa chỉ 0x68) |
+| MPU6050 (GY-521; nhận cả module dùng chip MPU6500/MPU9250) | VCC / GND / SDA / SCL | **3V3** / GND / GPIO21 / GPIO22 (AD0 để trống → địa chỉ 0x68) |
 | OLED SSD1306 0.96" I2C | VCC / GND / SDA / SCL | 3V3 / GND / GPIO21 / GPIO22 (chung bus) |
 | Buzzer chủ động | + / − | GPIO25 / GND |
-| LED đỏ + điện trở 220 Ω | Anode | GPIO26 |
-| LED xanh + điện trở 220 Ω | Anode | GPIO27 |
-| Tact switch | 2 chân | GPIO33 và GND |
+| LED đỏ + điện trở 220 Ω | Anode | GPIO27 |
+| LED xanh + điện trở 220 Ω | Anode | GPIO26 |
+| Tact switch | 2 chân chéo nhau | GPIO4 và GND |
 
 Đổi chân trong [`firmware/fall_belt/config.h`](firmware/fall_belt/config.h) nếu đấu khác.
 
@@ -293,7 +297,7 @@ Script tự cài bộ công cụ ESP32 và thư viện, biên dịch kèm model 
 [`detector.cpp`](firmware/fall_belt/detector.cpp) là C++ thuần, dùng chung cho ESP32 và bản kiểm thử trên PC:
 
 1. Lấy mẫu MPU6050 **50 Hz** (±16 g, ±2000 °/s, lọc 21 Hz) trong task riêng; quy đổi về hệ trục SisFall (X phải, Y xuống, Z trước).
-2. |a| > **2 g** → lấy đỉnh cao nhất trong 0,5 s; nhiều đỉnh liên tiếp đều được xét (hàng đợi), nên ngã ngay sau bước chạy không bị bỏ sót.
+2. |a| > **1,8 g** (`TRIGGER_G`) → lấy đỉnh cao nhất trong 0,5 s; nhiều đỉnh liên tiếp đều được xét (hàng đợi), nên ngã ngay sau bước chạy không bị bỏ sót.
 3. Đủ 2,5 s sau đỉnh thì xét:
    - **AI**: model Edge Impulse trên cửa sổ 2 s có **đỉnh ở chính giữa**. Đây đúng là cách dữ liệu train được cắt: mọi cửa sổ Fall có đỉnh tại mẫu 50.
    - **Thân nghiêng thêm** ≥ 30°: hướng trọng lực 1–2 s trước so với 1–2,5 s sau. Không phụ thuộc cách gắn cảm biến.
@@ -360,6 +364,7 @@ Giao thức MQTT: [`common/protocol.py`](common/protocol.py). Mọi ngưỡng fu
 | Hiện tượng | Cách xử lý |
 |---|---|
 | OLED đai ghi `NO SRV` | Đai chưa tìm thấy server. Kiểm tra `run.py` đang chạy và cùng mạng WiFi. Mạng chặn mDNS thì giữ nút 8 s và nhập IP máy tính (hiện ở mục *Hệ thống* trên dashboard). Tắt tường lửa macOS cho cổng 1883 |
+| Đai lúc vào lúc không được server, Serial báo `Server fallserver.local -> <IP lạ>` | Có máy khác trong mạng cũng quảng bá `fallserver.local` (vd. laptop khác đang chạy `run.py`). Tắt server đó, hoặc giữ nút 8 s và nhập thẳng IP máy tính |
 | OLED ghi `NO WIFI` | WiFi phải 2.4 GHz. Giữ nút 8 s để cấu hình lại |
 | Báo ngã nhầm khi đeo | Chạy hiệu chuẩn hướng lắp (giữ nút 3 s); xem cột AI/nghiêng trong bảng va chạm trên dashboard |
 | Không báo khi ngã thử | Gõ `info` trong Serial để xem góc thân; thử `fall` để kiểm tra chuỗi cảnh báo |

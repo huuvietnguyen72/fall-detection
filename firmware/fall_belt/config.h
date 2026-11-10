@@ -17,6 +17,7 @@
 #define BELT_ID         "belt01"          // phải trùng BELT_ID trong .env của server
 #define SETUP_AP_NAME   "FallBelt-Setup"  // tên WiFi phát ra khi cần cấu hình
 #define SETUP_AP_PASSWORD "fallbelt123"   // mật khẩu WiFi cấu hình (>= 8 ký tự)
+#define DATA_TCP_PORT   2323              // thu dữ liệu fine-tune qua WiFi: belt_collect.py --port <IP đai>; 0 = tắt
 
 // ---------- Model AI ----------
 // 1 = dùng model Edge Impulse (cài firmware/ei_models/Fall-Detection-SisFall_inferencing.zip vào Arduino IDE)
@@ -28,15 +29,15 @@
 #define PIN_SDA        21    // MPU6050 + OLED dùng chung I2C
 #define PIN_SCL        22
 #define PIN_BUZZER     25    // còi chủ động (active buzzer), HIGH = kêu
-#define PIN_LED_RED    26
-#define PIN_LED_GREEN  27
-#define PIN_BUTTON     33    // Tact switch nối GND (dùng pull-up nội)
+#define PIN_LED_RED    27
+#define PIN_LED_GREEN  26
+#define PIN_BUTTON     4     // Tact switch nối GND (dùng pull-up nội)
 #define MPU_ADDR       0x68  // 0x69 nếu chân AD0 nối VCC
 #define OLED_ADDR      0x3C
 #define BUZZER_ACTIVE_HIGH 1 // 0 nếu module còi kêu khi mức LOW
 
 // ---------- Phát hiện (đã tối ưu trên 4500 bản ghi SisFall — xem README) ----------
-#define TRIGGER_G          2.0f   // |a| vượt ngưỡng này mới xét
+#define TRIGGER_G          1.8f   // |a| vượt ngưỡng này mới xét (2.0 -> 1.8: dữ liệu đai thật 11/2026, bắt 96% vs 88%, báo nhầm không đổi)
 #define AI_THRESHOLD       0.5f   // P(Fall) tối thiểu
 #define MIN_TILT_DEG       30.0f  // thân nghiêng thêm tối thiểu sau va chạm
 #define MAX_PRE_TILT_DEG   65.0f  // trước va chạm thân phải gần thẳng đứng

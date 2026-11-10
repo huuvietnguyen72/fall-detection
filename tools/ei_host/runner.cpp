@@ -12,6 +12,11 @@
 
 #include "edge-impulse-sdk/classifier/ei_run_classifier.h"
 
+#ifdef _WIN32
+#include <fcntl.h>
+#include <io.h>
+#endif
+
 static int fall_index() {
     for (size_t i = 0; i < EI_CLASSIFIER_LABEL_COUNT; i++)
         if (strcmp(ei_classifier_inferencing_categories[i], "Fall") == 0) return (int)i;
@@ -31,6 +36,10 @@ int main(int argc, char **argv) {
     ei_impulse_result_t r;
 
     if (argc > 1 && strcmp(argv[1], "--binary") == 0) {
+#ifdef _WIN32
+        _setmode(_fileno(stdin), _O_BINARY);  // Windows: tránh cắt ở 0x1A / đổi \n <-> \r\n
+        _setmode(_fileno(stdout), _O_BINARY);
+#endif
         while (fread(buf.data(), sizeof(float), buf.size(), stdin) == buf.size()) {
             float p = classify(buf, r) ? r.classification[fall].value : -1.0f;
             fwrite(&p, sizeof(float), 1, stdout);
