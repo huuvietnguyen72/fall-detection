@@ -1,0 +1,112 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1060" viewBox="0 0 1600 1060" font-family="Arial, Helvetica, sans-serif">
+  <title>Luồng truyền tin IoT trong một ca té ngã</title>
+  <style>
+    .title { font-size: 30px; font-weight: 700; fill: #0b0b0b; }
+    .sub { font-size: 17px; fill: #52514e; }
+    .who { font-size: 17px; font-weight: 700; fill: #0b0b0b; }
+    .whos { font-size: 13px; fill: #52514e; }
+    .life { stroke: #c3c2b7; stroke-width: 2; stroke-dasharray: 6 6; }
+    .m { font-size: 14px; fill: #0b0b0b; }
+    .ms { font-size: 13px; fill: #52514e; }
+    .t { font-size: 13px; font-weight: 700; fill: #52514e; }
+    .arr { stroke: #52514e; stroke-width: 2; fill: none; marker-end: url(#a); }
+    .arrb { stroke: #2a78d6; stroke-width: 2.2; fill: none; marker-end: url(#ab); }
+    .arro { stroke: #eb6834; stroke-width: 2.4; fill: none; marker-end: url(#ao); }
+    .act { fill: #eef4fc; stroke: #2a78d6; stroke-width: 1.5; }
+    .acto { fill: #fdf0e8; stroke: #eb6834; stroke-width: 1.5; }
+    .note { fill: #ffffff; stroke: #c3c2b7; stroke-width: 1.2; }
+    .relay { fill: #1baf7a; }
+  </style>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#52514e"/></marker>
+    <marker id="ab" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#2a78d6"/></marker>
+    <marker id="ao" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#eb6834"/></marker>
+  </defs>
+  <rect width="1600" height="1060" fill="#fcfcfb"/>
+  <text x="40" y="50" class="title">Luồng truyền tin IoT trong một ca té ngã (MQTT publish / subscribe)</text>
+  <text x="40" y="78" class="sub">Mọi bản tin giữa thiết bị và server đi qua broker (chấm xanh = broker chuyển tiếp). Thời gian đo được ghi bên phải (report/latency_bench.py)</text>
+
+  <!-- Participants: x = 170, 430, 690, 950, 1200, 1430 -->
+  <g>
+    <rect x="80" y="100" width="180" height="60" rx="8" fill="#ffffff" stroke="#2a78d6" stroke-width="2"/>
+    <text x="170" y="127" class="who" text-anchor="middle">Đai lưng</text><text x="170" y="147" class="whos" text-anchor="middle">ESP32 + TinyML</text>
+    <rect x="340" y="100" width="180" height="60" rx="8" fill="#ffffff" stroke="#2a78d6" stroke-width="2"/>
+    <text x="430" y="127" class="who" text-anchor="middle">Camera</text><text x="430" y="147" class="whos" text-anchor="middle">Vision Node</text>
+    <rect x="600" y="100" width="180" height="60" rx="8" fill="#ffffff" stroke="#1baf7a" stroke-width="2"/>
+    <text x="690" y="127" class="who" text-anchor="middle">MQTT Broker</text><text x="690" y="147" class="whos" text-anchor="middle">Mosquitto</text>
+    <rect x="860" y="100" width="180" height="60" rx="8" fill="#ffffff" stroke="#eb6834" stroke-width="2"/>
+    <text x="950" y="127" class="who" text-anchor="middle">Server</text><text x="950" y="147" class="whos" text-anchor="middle">Decision Fusion</text>
+    <rect x="1110" y="100" width="180" height="60" rx="8" fill="#ffffff" stroke="#898781" stroke-width="2"/>
+    <text x="1200" y="127" class="who" text-anchor="middle">Telegram</text><text x="1200" y="147" class="whos" text-anchor="middle">Bot API (Internet)</text>
+    <rect x="1340" y="100" width="180" height="60" rx="8" fill="#ffffff" stroke="#898781" stroke-width="2"/>
+    <text x="1430" y="127" class="who" text-anchor="middle">Người thân</text><text x="1430" y="147" class="whos" text-anchor="middle">điện thoại</text>
+  </g>
+  <line x1="170" y1="160" x2="170" y2="1010" class="life"/>
+  <line x1="430" y1="160" x2="430" y2="1010" class="life"/>
+  <line x1="690" y1="160" x2="690" y2="1010" class="life" stroke="#1baf7a"/>
+  <line x1="950" y1="160" x2="950" y2="1010" class="life"/>
+  <line x1="1200" y1="160" x2="1200" y2="1010" class="life"/>
+  <line x1="1430" y1="160" x2="1430" y2="1010" class="life"/>
+
+  <!-- Giám sát thường xuyên -->
+  <rect x="60" y="175" width="1480" height="118" rx="6" fill="none" stroke="#c3c2b7" stroke-dasharray="4 4"/>
+  <text x="70" y="193" class="t">LẶP LẠI — giám sát nền</text>
+  <path d="M170,220 L946,220" class="arrb"/><circle cx="690" cy="220" r="5" class="relay"/>
+  <text x="185" y="213" class="m">fall/belt/belt01/status · 1 Hz (gia tốc, góc thân, RSSI, infer_ms, heap)</text>
+  <path d="M430,262 L946,262" class="arrb"/><circle cx="690" cy="262" r="5" class="relay"/>
+  <text x="445" y="255" class="m">fall/vision/cam01/posture · 2 Hz hoặc khi đổi  (+ preview 12 FPS)</text>
+
+  <!-- Va chạm -->
+  <rect x="100" y="310" width="140" height="44" rx="6" class="note"/>
+  <text x="170" y="330" class="m" text-anchor="middle" font-weight="700">t = 0: va chạm</text>
+  <text x="170" y="346" class="ms" text-anchor="middle">|a| ≥ 1,8 g</text>
+  <rect x="160" y="358" width="20" height="104" class="act"/>
+  <text x="190" y="385" class="m">Chờ 2,5 s sau đỉnh → TinyML</text>
+  <text x="190" y="403" class="ms">+ góc nghiêng thân → NGÃ</text>
+  <text x="190" y="421" class="ms">còi bíp, OLED đếm ngược</text>
+  <text x="1555" y="403" class="t" text-anchor="end">2,5 s</text>
+
+  <path d="M170,480 L946,480" class="arro"/><circle cx="690" cy="480" r="5" class="relay"/>
+  <text x="185" y="473" class="m" font-weight="700">fall/belt/belt01/event {type: impact, score, peak_g, tilt} · QoS 1</text>
+  <text x="1555" y="485" class="t" text-anchor="end">~1 ms (LAN) + Wi-Fi</text>
+
+  <rect x="940" y="490" width="20" height="270" class="acto"/>
+  <text x="972" y="512" class="m" font-weight="700">COUNTDOWN 15 s</text>
+  <text x="972" y="530" class="ms">dashboard đếm ngược</text>
+  <text x="1555" y="520" class="t" text-anchor="end">15 s (cố ý)</text>
+
+  <!-- alt -->
+  <rect x="60" y="548" width="1060" height="150" rx="6" fill="none" stroke="#898781" stroke-dasharray="5 4"/>
+  <rect x="60" y="548" width="54" height="22" fill="#898781"/><text x="87" y="564" font-size="13" font-weight="700" fill="#ffffff" text-anchor="middle">alt</text>
+  <text x="126" y="566" class="ms">[người dùng bấm nút trên đai]</text>
+  <path d="M170,592 L936,592" class="arr"/><circle cx="690" cy="592" r="5" class="relay"/>
+  <text x="185" y="586" class="m">event {type: cancel}  → CANCELLED, về IDLE</text>
+  <line x1="60" y1="610" x2="1120" y2="610" stroke="#898781" stroke-dasharray="5 4"/>
+  <text x="126" y="628" class="ms">[camera thấy ĐỨNG liên tục ≥ 3 s — báo nhầm, vd. rơi đai]</text>
+  <path d="M936,668 L174,668" class="arr"/><circle cx="690" cy="668" r="5" class="relay"/>
+  <text x="300" y="660" class="m">fall/belt/belt01/cmd {cmd: dismiss}  → IGNORED, đai tắt còi</text>
+
+  <!-- else: SOS -->
+  <rect x="868" y="712" width="164" height="44" rx="6" class="note"/>
+  <text x="950" y="731" class="m" text-anchor="middle" font-weight="700">Hết 15 s: NẰM</text>
+  <text x="950" y="748" class="ms" text-anchor="middle">→ SOS (vòng 100 ms)</text>
+  <text x="1555" y="738" class="t" text-anchor="end">≤ 100 ms</text>
+
+  <path d="M946,790 L174,790" class="arro"/><circle cx="690" cy="790" r="5" class="relay"/>
+  <text x="300" y="782" class="m" font-weight="700">cmd {cmd: sos} · QoS 1 → còi liên tục, LED đỏ</text>
+  <text x="1555" y="795" class="t" text-anchor="end">~1 ms</text>
+
+  <path d="M946,836 L434,836" class="arr"/><circle cx="690" cy="836" r="5" class="relay"/>
+  <text x="700" y="828" class="m">snapshot/request</text>
+  <path d="M430,868 L946,868" class="arrb"/><circle cx="690" cy="868" r="5" class="relay"/>
+  <text x="445" y="861" class="m">snapshot (JPEG có khung xương)</text>
+  <text x="1555" y="855" class="t" text-anchor="end">~2 ms</text>
+
+  <path d="M950,910 L1196,910" class="arro"/>
+  <text x="962" y="902" class="m" font-weight="700">sendPhoto (HTTPS)</text>
+  <path d="M1200,950 L1426,950" class="arro"/>
+  <text x="1212" y="942" class="m">🚨 cảnh báo + ảnh</text>
+  <text x="1555" y="932" class="t" text-anchor="end">~0,2–0,6 s</text>
+
+  <text x="40" y="1040" class="sub">Tổng thời gian từ lúc ngã đến khi người thân nhận tin ≈ 2,5 s (đai) + 15 s (đếm ngược cho phép hủy) + &lt; 1 s (mạng, xử lý, Telegram).</text>
+</svg>

@@ -1,372 +1,340 @@
 # Hệ thống giám sát và phát hiện té ngã thời gian thực
-*Đai lưng ESP32 (TinyML) + Camera (MediaPipe) + Decision Fusion + Telegram*
 
-```
- Đai lưng ESP32 + MPU6050 ─────────────┐                ┌──────────── Camera (Python, MediaPipe Pose)
- 50 Hz → bắt đỉnh va chạm → AI Edge     │                │  khung xương → Đứng / Ngồi / Cúi / Nằm
- Impulse + góc nghiêng → còi/LED/OLED   │                │  + ảnh xem trước + ảnh hiện trường
-                                        ▼                ▼
-                         ┌──────────── MQTT (Mosquitto) ────────────┐
-                                        │
-                     Server "bộ não": Decision Fusion → Dashboard web → Telegram SOS (kèm ảnh)
-```
+*Đai lưng ESP32 (TinyML) + Camera (MediaPipe) + Decision Fusion + cảnh báo Telegram*
 
-## Hướng dẫn từng bước (macOS và Windows)
+![Kiến trúc hệ thống](docs/figures/diagram_architecture.png)
 
-> Các lệnh khác nhau giữa hai hệ điều hành được ghi riêng **macOS** / **Windows**. Trên Windows, gõ lệnh trong **PowerShell**.
-> Từ bước 2 trở đi, mọi lệnh `python ...` chạy trong thư mục `fall-detection` **sau khi đã kích hoạt môi trường ảo** (bước 1.3).
+Hệ thống có ba phần chạy song song:
+- **Đai lưng** đeo trước bụng (ESP32 + cảm biến MPU6050). Đai tự phát hiện cú ngã bằng AI chạy ngay trên chip, báo bằng còi, đèn và màn hình, và cho người dùng bấm nút hủy.
+- **Camera** (webcam, hoặc iPhone qua Wi-Fi) nhìn xem người còn nằm trên sàn không.
+- **Server** trên laptop/PC trong nhà hợp nhất hai nguồn. Khi chắc chắn có người ngã, server gửi tin nhắn kèm ảnh hiện trường qua Telegram cho người thân.
 
-### Bước 0. Cài phần mềm nền (một lần)
+| Bạn muốn… | Đọc |
+|---|---|
+| Chạy thử ngay trên máy mới (không cần phần cứng) | [Mục 1](#1-cài-đặt-và-chạy-trên-máy-mới) |
+| Hiểu hệ thống chạy thế nào | [Mục 2](#2-luồng-chạy) |
+| Lắp đai, nạp firmware, cấu hình Wi-Fi | [Mục 3](#3-phần-cứng-đai-lưng) |
+| Dùng camera iPhone / điện thoại | [Mục 4](#4-camera) |
+| Sửa code, chạy test, chỉnh thuật toán | [Mục 6](#6-phát-triển-và-sửa-code) |
+| Viết báo cáo, bài báo, poster (số liệu, hình, sơ đồ) | **[docs/BAO_CAO_KY_THUAT.md](docs/BAO_CAO_KY_THUAT.md)** |
+| Gặp lỗi | [Mục 8](#8-xử-lý-sự-cố) |
 
-| Cần cài | macOS (cài [Homebrew](https://brew.sh) trước) | Windows |
+---
+
+## 1. Cài đặt và chạy trên máy mới
+
+### 1.1. Cài phần mềm nền (một lần)
+
+| Cần cài | macOS (cài [Homebrew](https://brew.sh) trước) | Windows (PowerShell) |
 |---|---|---|
 | Git | `brew install git` | `winget install Git.Git` |
-| Python **3.11** (MediaPipe chưa hỗ trợ 3.13+) | `brew install python@3.11` | `winget install Python.Python.3.11` |
-| MQTT broker Mosquitto | `brew install mosquitto` | `winget install EclipseFoundation.Mosquitto` |
-| arduino-cli (để nạp ESP32) | `brew install arduino-cli` | `winget install ArduinoSA.CLI`, hoặc tải bản Windows ở [trang cài đặt chính thức](https://arduino.github.io/arduino-cli/latest/installation/) |
-| Trình biên dịch C++ (chỉ cần cho lệnh chấm ngưỡng ở bước 7) | `xcode-select --install` | [MSYS2](https://www.msys2.org) rồi `pacman -S mingw-w64-ucrt-x86_64-gcc`; trước khi chấm chạy `$env:Path = "C:\msys64\ucrt64\bin;$env:Path"` |
-| Driver USB của ESP32 | Thường có sẵn | Cài **CP210x** ([Silicon Labs](https://www.silabs.com/developer-tools/usb-to-uart-bridge-vcp-drivers)) hoặc **CH340** ([WCH](https://www.wch-ic.com/downloads/CH341SER_EXE.html)), tùy chip in trên board |
+| Python 3.10–3.14 (đã chạy thử 3.11, 3.12, 3.14) | `brew install python` | `winget install Python.Python.3.12` |
+| Mosquitto (MQTT broker) | `brew install mosquitto` | `winget install EclipseFoundation.Mosquitto` |
+| arduino-cli (chỉ cần khi nạp firmware) | `brew install arduino-cli` | `winget install ArduinoSA.CLI` |
+| Trình biên dịch C++ (chỉ cần khi chấm điểm AI / chạy `report/ai_metrics.py`) | `xcode-select --install` | [MSYS2](https://www.msys2.org) rồi `pacman -S mingw-w64-ucrt-x86_64-gcc`; trước khi chấm chạy `$env:Path = "C:\msys64\ucrt64\bin;$env:Path"` |
 
-Cài xong trên Windows thì **đóng PowerShell, mở lại** để nhận lệnh mới. Thêm 2 việc riêng cho Windows:
-
-1. **Tắt dịch vụ Mosquitto mặc định.** Bộ cài Windows tự chạy Mosquitto chỉ nghe trên máy, nên đai không kết nối được. Mở PowerShell **Run as Administrator** rồi chạy:
+**Riêng Windows**, cài xong thì đóng và mở lại PowerShell, rồi làm thêm hai việc:
+1. **Tắt dịch vụ Mosquitto mặc định**, vì dịch vụ này chỉ nghe trên máy nên đai không vào được. Mở PowerShell *Run as Administrator*:
    ```powershell
    Stop-Service mosquitto; Set-Service mosquitto -StartupType Manual
    ```
-   Từ đó `run.py` tự bật Mosquitto với cấu hình của dự án.
-2. **Tường lửa:** lần đầu chạy, Windows hỏi quyền cho `python.exe` và `mosquitto.exe`. Chọn **Allow** cho mạng **Private**, và đặt WiFi nhà ở chế độ *Private network*.
+   Từ đó `run.py` tự bật Mosquitto bằng cấu hình của dự án.
+2. **Tường lửa:** lần đầu chạy, chọn **Allow** cho `python.exe` và `mosquitto.exe` trên mạng **Private**, và đặt Wi-Fi nhà là *Private network*.
 
-### Bước 1. Tải code và cài thư viện Python
+### 1.2. Tải code và cài đặt (một lệnh)
 
-**1.1. Tải code** (repo đang để riêng tư, người khác cần được mời vào repo trước):
 ```bash
 git clone https://github.com/khuatminh/fall-detection.git
-```
-```bash
 cd fall-detection
 ```
 
-**1.2. Tạo môi trường ảo:**
-
-macOS:
+macOS / Linux:
 ```bash
-python3.11 -m venv .venv
+bash scripts/setup.sh
 ```
 Windows:
 ```powershell
-py -3.11 -m venv .venv
+powershell -ExecutionPolicy Bypass -File scripts\setup.ps1
 ```
 
-**1.3. Kích hoạt môi trường ảo** (làm lại mỗi khi mở terminal mới):
+Script sẽ tạo môi trường ảo `.venv`, cài thư viện, tạo file `.env` từ `.env.example`, tải model MediaPipe, kiểm tra Mosquitto và chạy bộ test. Lần đầu mất vài phút.
 
-macOS:
+### 1.3. Chạy
+
+macOS / Linux:
 ```bash
-source .venv/bin/activate
-```
-Windows (nếu báo lỗi *running scripts is disabled*, chạy trước `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`):
-```powershell
-.venv\Scripts\Activate.ps1
-```
-
-**1.4. Cài thư viện** (MediaPipe, OpenCV, Flask, MQTT...):
-```bash
-python -m pip install -r requirements.txt
-```
-
-**1.5. Tạo file cấu hình:**
-
-macOS:
-```bash
-cp .env.example .env
+.venv/bin/python run.py --camera-sim      # chưa có webcam/đai: camera giả lập
+.venv/bin/python run.py                   # dùng webcam (hoặc camera trong .env)
 ```
 Windows:
 ```powershell
-copy .env.example .env
+.venv\Scripts\python run.py --camera-sim
+.venv\Scripts\python run.py
 ```
 
-Điền Telegram vào `.env` nếu muốn (mục 5). Để trống thì tin nhắn và ảnh SOS được lưu vào `logs/` thay vì gửi đi.
+Dashboard tự mở ở **http://localhost:8088**. `Ctrl+C` để tắt mọi thứ.
 
-### Bước 2. Chạy thử khi chưa có phần cứng
+> Muốn gõ ngắn là `python` thay vì `.venv/bin/python`, hãy kích hoạt môi trường ảo trước: macOS `source .venv/bin/activate`, Windows `.venv\Scripts\Activate.ps1`. Nếu Windows báo *running scripts is disabled*, chạy trước `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`. **Các lệnh `python ...` bên dưới đều giả định đã kích hoạt.**
+
+### 1.4. Thử khi chưa có đai
+
+Mở terminal thứ hai:
 ```bash
-python run.py --camera-sim
+python -m simulator.belt_sim          # gõ f = ngã · d = rơi thiết bị · j = nhảy · c = bấm hủy · o = mất kết nối
+python -m simulator.run_scenarios     # tự diễn 3 kịch bản demo (~45 s)
 ```
-Dashboard tự mở ở **http://localhost:8088**. Mở terminal thứ hai, kích hoạt lại môi trường ảo (bước 1.3), rồi chạy:
-```bash
-python -m simulator.run_scenarios
-```
-Lệnh này tự diễn 3 kịch bản demo. Bỏ `--camera-sim` để dùng webcam thật (chi tiết ở mục 1).
 
-### Bước 3. Đấu dây
-
-![Sơ đồ đấu dây ESP32 với MPU6050, OLED, còi, 2 LED và nút bấm](docs/wiring.svg)
-
-> ⚠️ Hình trên còn vẽ theo chân cũ (nút GPIO33, LED đỏ GPIO26, LED xanh GPIO27). Chân hiện tại của firmware: **nút GPIO4, LED đỏ GPIO27, LED xanh GPIO26**, theo bảng ở mục 2.1 và [`config.h`](firmware/fall_belt/config.h).
-
-**Xem và chạy thử mạch trên Wokwi:** vào [wokwi.com/projects/new/esp32](https://wokwi.com/projects/new/esp32), dán nội dung [`wokwi/diagram.json`](wokwi/diagram.json) vào tab *diagram.json* và [`wokwi/sketch.ino`](wokwi/sketch.ino) vào tab *sketch.ino*, rồi bấm ▶. Serial phải in `I2C 0x3C` và `I2C 0x68`; LED nháy luân phiên, còi kêu, bấm nút thì in `btn=0`.
-
-Bảng chân chi tiết ở **mục 2.1**. Lắp trên breadboard theo thứ tự sau:
-1. Cắm ESP32 vào giữa breadboard. Nối chân **3V3** ra thanh nguồn (+) và chân **GND** ra thanh (−).
-2. **MPU6050** và **OLED**: VCC → thanh (+), GND → thanh (−), SCL → **GPIO22**, SDA → **GPIO21**. Hai module dùng chung 2 dây SCL/SDA. Tuyệt đối **không cấp 5V/VIN** cho hai module này.
-3. **Còi**: chân (+) → GPIO25, chân (−) → thanh (−). Nếu dùng module còi 3 chân (VCC/GND/I/O): VCC → thanh (+), GND → thanh (−), I/O → GPIO25. Nếu còi kêu liên tục khi bình thường, đổi `BUZZER_ACTIVE_HIGH` thành `0` trong `config.h`.
-4. **LED**: GPIO27 → điện trở 220 Ω → chân dài LED đỏ, chân ngắn → thanh (−). Làm tương tự với GPIO26 và LED xanh.
-5. **Nút bấm**: một chân → GPIO4, chân chéo đối diện → thanh (−). Không cần điện trở vì firmware bật pull-up nội.
-6. **Khi đeo**: cấp nguồn bằng sạc dự phòng qua cổng micro-USB là đơn giản nhất. Gắn MPU6050 cố định trước bụng theo hướng ở mục 2.1, sao cho cảm biến không lắc lư so với người.
-
-### Bước 4. Nạp firmware
-Cắm ESP32 bằng cáp USB **có dây dữ liệu** (cáp chỉ sạc sẽ không nhận). Sau đó chạy:
-```bash
-python firmware/flash.py --monitor
-```
-Lần đầu, script mất khoảng 5 phút để tự cài bộ công cụ ESP32, 5 thư viện Arduino, và giải nén model AI từ `firmware/ei_models/Fall-Detection-SisFall_inferencing.zip`. Sau đó nó biên dịch, tự tìm cổng USB, nạp, rồi mở Serial Monitor (Ctrl+C để thoát).
-
-- **Không tìm thấy cổng:** chỉ định cổng bằng tay. Trên Windows xem số COM trong *Device Manager → Ports (COM & LPT)*, rồi chạy `python firmware/flash.py --port COM5`. Trên macOS là dạng `--port /dev/cu.usbserial-0001`.
-- **Kẹt ở `Connecting...`:** giữ nút **BOOT** trên ESP32 cho đến khi thấy phần trăm nạp chạy.
-- Muốn dùng Arduino IDE thay vì script: xem mục 2.2.
-
-### Bước 5. Cấu hình đai lần đầu
-1. Chạy `python run.py` trên máy tính. Máy tính và đai phải chung một mạng WiFi **2.4 GHz**.
-2. OLED hiện tên WiFi **`FallBelt-Setup`**. Dùng điện thoại kết nối vào WiFi đó (mật khẩu `fallbelt123`), chọn WiFi nhà và nhập mật khẩu, giữ ô server mặc định là `fallserver.local`, rồi bấm Save.
-3. Dashboard hiện **Đai lưng: Online**. Nếu OLED báo `NO SRV`, giữ nút 8 giây để mở lại trang cấu hình và nhập IP máy tính. IP này hiện ở ô *Hệ thống* trên dashboard.
-4. Gõ `fall` trong Serial Monitor để thử cả chuỗi còi, LED, đếm ngược và dashboard mà không cần ngã thật.
-
-### Bước 6. Demo
-Đeo đai và đặt camera theo mục 1, rồi diễn 3 kịch bản trong bảng ở mục 1.
-
-### Bước 7. Fine-tune bằng phần cứng
-
-Làm lần lượt từ 7.1. Đa số trường hợp chỉ cần 7.1 và 7.2.
-
-**7.1. Hiệu chuẩn hướng lắp (10 giây, bắt buộc nếu lắp cảm biến khác mặc định).** Đeo đai, **giữ nút 3 giây** → đứng thẳng yên (bíp 1) → cúi người về trước khoảng 45° và giữ yên (bíp 2) → bíp 3 lần là xong. Đai lưu vĩnh viễn kết quả. Gõ `info` trong Serial Monitor để xem góc thân: đứng thẳng phải gần 0°, nằm phải gần 90°.
-
-**7.2. Thu dữ liệu từ đai và chỉnh ngưỡng.** Bước này cho biết với chính đai, người đeo và cách lắp của bạn, firmware bắt được bao nhiêu cú ngã và báo nhầm bao nhiêu.
-
-**Thu qua WiFi (khuyên dùng, không vướng dây):** cấp nguồn đai bằng sạc dự phòng, đai và máy tính chung WiFi. Lấy IP của đai bằng lệnh `info` (qua USB) hoặc ô *Đai lưng* trên dashboard, rồi chạy:
-```bash
-python tinyml/belt_collect.py record --label Fall --port 192.168.1.20
-```
-`--port` nhận IP đai, `belt01.local`, hoặc cổng COM / `/dev/...` nếu thu qua USB (bỏ trống = tự tìm USB; khi đó đóng Serial Monitor trước). Qua WiFi, firmware mở cổng TCP `DATA_TCP_PORT` (2323, trong `config.h`) và chỉ nhận lệnh `data` qua cổng này.
-Mỗi lần nhấn Enter, máy đếm ngược 3 giây rồi ghi 8 giây. Trong lúc ghi: **đứng yên khoảng 2 giây → ngã xuống đệm → nằm yên đến khi hết giờ**. Nên thu ít nhất 15 lần, đủ các kiểu: ngã về trước, ngã ngửa, ngã sang hai bên, khuỵu gối. Gõ `q` để kết thúc.
-
-```bash
-python tinyml/belt_collect.py record --label Normal --port 192.168.1.20
-```
-Tương tự, thu ít nhất 20 lần sinh hoạt dễ gây nhầm: ngồi phịch xuống ghế, cúi nhặt đồ, nhảy, chạy bộ, nằm xuống giường, tháo đai đặt mạnh xuống bàn.
-
-Sau đó chấm điểm (cần trình biên dịch C++, xem bước 0):
-```bash
-python tinyml/belt_collect.py eval --grid
-```
-Lệnh này chạy **đúng mã firmware và model** trên từng lần thử. Bảng kết quả có các cột: đỉnh va chạm (g), xác suất AI, góc nghiêng thân, kết luận, và đánh dấu `<- SAI` ở lần thử sai. Phía dưới là tỉ lệ bắt ngã và báo nhầm cho 27 bộ ngưỡng. Chọn bộ ngưỡng phù hợp, sửa `TRIGGER_G`, `AI_THRESHOLD`, `MIN_TILT_DEG` trong [`firmware/fall_belt/config.h`](firmware/fall_belt/config.h), rồi nạp lại bằng bước 4.
-
-Mẹo đọc kết quả:
-- Ngã bị bỏ sót vì đỉnh dưới `TRIGGER_G` (ngã lên đệm dày): giảm `TRIGGER_G` thêm (mặc định 1.8; dữ liệu đai thật: 2.0 → 1.8 tăng bắt ngã 88% → 96%, báo nhầm không đổi).
-- Ngã bị bỏ sót và script báo `Ngã sớm quá`: lần thử đó ngã trước giây thứ 2 nên `eval` không chấm được (bộ phát hiện cần 2 s trước va chạm). Thu lại, đứng yên 2-3 s sau chữ GHI.
-- Bỏ sót vì AI thấp: giảm `AI_THRESHOLD`, hoặc làm bước 7.3.
-- Báo nhầm khi đặt đai xuống bàn: đã có camera hỗ trợ, nên chỉ tăng ngưỡng nếu nhầm quá nhiều.
-
-**7.3. Train lại model AI bằng dữ liệu của đai.** Chỉ làm khi bước 7.2 cho thấy AI hay chấm sai.
-
-Lệnh `record` ở bước 7.2 đã tự cắt sẵn các cửa sổ 2 giây, đỉnh va chạm nằm giữa (đúng cách dữ liệu train được cắt), vào thư mục `data/belt/ei/`. Tên file dạng `Fall.xxx.csv` / `Normal.xxx.csv`, nên Edge Impulse tự hiểu nhãn.
-
-1. Đăng nhập [Edge Impulse](https://studio.edgeimpulse.com) và mở project **Fall-Detection-SisFall** của nhóm.
-2. Vào **Data acquisition → Upload data**: chọn toàn bộ file trong `data/belt/ei/`, chọn *Automatically split between training and testing*, chọn *Infer from filename*, rồi bấm Upload.
-3. Vào **Retrain model → Train model**, sau đó **Model testing → Classify all** để xem accuracy mới.
-4. Vào **Deployment**: chọn **Arduino library**, bản **Quantized (int8)**, bấm **Build**.
-5. Ghi đè file zip vừa tải lên `firmware/ei_models/Fall-Detection-SisFall_inferencing.zip` (giữ nguyên tên file).
-6. Chạy lại `python tinyml/belt_collect.py eval` để so sánh với model cũ. Nếu tốt hơn thì nạp lại bằng bước 4.
-
----
-
-## Kết quả đã kiểm chứng (chưa có phần cứng)
-
-| Hạng mục | Cách kiểm chứng | Kết quả |
+| # | Kịch bản | Kết quả mong đợi |
 |---|---|---|
-| Model AI của nhóm (Edge Impulse, int8) | Chạy **đúng mã C++** của model trên PC, tập test 80 cửa sổ | Accuracy **100%** |
-| Bộ phát hiện của firmware chạy liên tục | **Đúng mã C++ của firmware** + model, trên **4500 bản ghi SisFall gốc (22 giờ)** | Recall **95.7%** (người mới: **97.6%**) · báo nhầm **0.5%** bản ghi sinh hoạt |
-| So với cách trượt cửa sổ của sketch bàn giao | Cùng dữ liệu | Recall 95.8% · báo nhầm **8.1%** → giảm **16 lần** |
-| Firmware ESP32 | `arduino-cli compile` kèm model thật | Biên dịch sạch, 38% flash, 16% RAM |
-| Lõi firmware (detector, máy trạng thái, hiệu chuẩn) | Unit test C++ `-Wall -Werror` | Đạt |
-| Review code độc lập (firmware, server, dashboard) | Đối chiếu mã nguồn thư viện ESP32/WiFiManager/MPU6050 | 8 vấn đề tìm thấy, **đã sửa hết** |
-| Server/dashboard chịu bản tin MQTT sai/độc hại | Gửi `null`, mảng, chuỗi `<script>`, số sai kiểu | Không sập, không XSS |
-| Server + camera + Telegram + dashboard | 3 kịch bản demo qua MQTT thật | Đạt |
+| 1 | Thả rơi đai, người vẫn đứng | `IGNORED (False Alarm Dismissed)`, đai tự tắt còi sau ~3 s |
+| 2 | Ngã xuống sofa, bấm nút ở giây thứ 5 | `CANCELLED (User pressed cancel)` |
+| 3 | Ngã xuống thảm, nằm im 15 s | `SOS SENT (Fall Confirmed)` + Telegram kèm ảnh |
 
-> Tổng cộng 30 kiểm thử tự động: `python -m pytest`.
-> Những gì **chưa** kiểm chứng được: chạy trên ESP32 thật, cảm biến MPU6050 thật, thời gian suy luận thật trên ESP32.
+### 1.5. File cấu hình `.env`
 
----
+Mở `.env` bằng trình soạn thảo bất kỳ. Những dòng hay sửa:
 
-## 1. Chạy hệ thống — một lệnh
+| Biến | Ý nghĩa |
+|---|---|
+| `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | Bot gửi cảnh báo (mục 5). Để trống thì tin nhắn và ảnh được lưu vào `logs/` thay vì gửi |
+| `CAMERA_SOURCE` | `0` = webcam; `1`, `2`… = camera khác; hoặc URL camera điện thoại (mục 4) |
+| `PREVIEW_FPS`, `PREVIEW_WIDTH` | độ mượt và độ nét của video trên dashboard (mặc định 12 FPS, 640 px) |
+| `COUNTDOWN_S`, `STANDING_CONFIRM_S`, `VISION_ONLY_LYING_S`, `NO_VISION_POLICY` | ngưỡng của Decision Fusion (mục 2.3) |
 
-```bash
-python run.py
-```
-
-Lệnh này bật MQTT broker (nếu chưa chạy), server, camera (webcam) rồi mở dashboard **http://localhost:8088**.
-- Camera điện thoại (app *IP Webcam* / *DroidCam*): `run.py --camera http://IP_DIEN_THOAI:8080/video`
-- Không có webcam: `run.py --camera-sim`
-- Lần đầu macOS hỏi quyền Camera cho Terminal: *System Settings → Privacy & Security → Camera*.
-- Đặt camera **cao, nhìn chéo xuống sàn**, thấy toàn thân.
-
-**Chưa có đai lưng?** Mở terminal khác và chạy bộ giả lập. Nó gửi đúng các bản tin như firmware thật:
-```bash
-python -m simulator.belt_sim
-```
-Gõ `f` = ngã · `d` = rơi thiết bị · `j` = nhảy/chạy (bị bỏ qua) · `c` = bấm nút hủy · `o` = đai mất kết nối.
-
-**Tập dượt 3 kịch bản demo tự động** (khoảng 45 giây, khi `run.py` đang chạy):
-```bash
-python -m simulator.run_scenarios
-```
-
-| # | Hành động khi demo | Kết quả |
-|---|---|---|
-| 1 | Thả rơi đai, người vẫn đứng | `Belt: Fall Warning \| Camera: Standing -> System Action: IGNORED (False Alarm Dismissed)` — đai tự tắt còi sau ~3 s |
-| 2 | Ngã xuống sofa, bấm nút ở giây thứ 5 | `... -> CANCELLED (User pressed cancel)` |
-| 3 | Ngã xuống thảm, nằm im 15 s | `Belt: Fall Warning \| Camera: Lying -> System Action: SOS SENT (Fall Confirmed)` + Telegram kèm ảnh |
-
-### Dashboard
-- **Banner trạng thái**: An toàn / Cảnh báo sơ cấp (vòng đếm ngược) / SOS, kèm các bước Decision Fusion (đai · chờ hủy · camera).
-- **Đai lưng**: WiFi, thời gian chạy, thời gian AI, hướng lắp; biểu đồ gia tốc 2 phút với ngưỡng 2g; đồng hồ góc nghiêng thân; bảng các va chạm đã xét (đỉnh, xác suất AI, góc nghiêng, kết luận).
-- **Camera**: hình trực tiếp kèm khung xương, tư thế, độ tin cậy, FPS.
-- **Decision Fusion + nhật ký**, ảnh hiện trường đã gửi, và thông tin hệ thống: **địa chỉ server cho đai** (`fallserver.local · IP`), MQTT, Telegram.
-- Nút **Bật âm thanh** để máy tính kêu khi có cảnh báo; **Đã xác nhận an toàn** để reset sau SOS.
+`.env` chứa mật khẩu nên **không được đưa lên GitHub** (đã có trong `.gitignore`). Chuyển sang máy khác thì tự tạo lại, hoặc chép file tay.
 
 ---
 
-## 2. Khi có phần cứng
+## 2. Luồng chạy
 
-### 2.1 Đấu dây (ESP32 DevKit V1)
+### 2.1. `run.py` bật những gì
 
-Sơ đồ hình: [docs/wiring.svg](docs/wiring.svg) (cũng có ở **Bước 3**).
+```
+run.py
+ ├─ Mosquitto (MQTT broker, cổng 1883)       mosquitto/mosquitto.conf
+ ├─ server.main                              Decision Fusion + dashboard :8088 + Telegram + quảng bá fallserver.local
+ └─ vision.main  (hoặc simulator.vision_sim) camera → MediaPipe Pose → tư thế → MQTT
+Đai lưng (ESP32) tự tìm fallserver.local qua mDNS rồi kết nối MQTT.
+```
+
+Tùy chọn: `--camera <nguồn>` (ghi đè `CAMERA_SOURCE`), `--camera-sim`, `--no-camera` (camera chạy ở máy khác), `--no-browser`.
+
+### 2.2. Một cú ngã đi qua hệ thống thế nào
+
+![Luồng xử lý song song](docs/figures/diagram_parallel_pipeline.png)
+
+1. **Đai** lấy mẫu cảm biến 50 lần mỗi giây. Khi gia tốc vượt 1,8 g, đai chờ 2,5 s rồi chạy model AI trên cửa sổ 2 s quanh va chạm, đồng thời đo góc nghiêng thân trước và sau va chạm. Nếu là ngã, đai kêu bíp, đếm ngược 15 s trên OLED và gửi sự kiện `impact` lên server.
+2. **Camera** liên tục nhận diện khung xương và gửi tư thế (ĐỨNG / NGỒI / CÚI / NẰM / không có người) lên server.
+3. **Server** đếm ngược 15 s:
+   - Người dùng bấm nút trên đai thì hủy.
+   - Camera thấy đứng liên tục 3 s thì coi là báo nhầm.
+   - Hết 15 s mà camera thấy **NẰM** thì báo **SOS**: đai hú còi, server chụp ảnh hiện trường và gửi Telegram.
+   - Hết 15 s mà camera không thấy người thì gửi cảnh báo mức nhẹ.
+4. **Dự phòng:** mất đai mà camera thấy nằm ≥ 20 s thì vẫn SOS. Đai mất server 20 s thì tự SOS tại chỗ.
+
+Chi tiết thuật toán, sơ đồ trạng thái và luồng bản tin MQTT: [docs/BAO_CAO_KY_THUAT.md](docs/BAO_CAO_KY_THUAT.md), mục 2 và 4.
+
+### 2.3. Dashboard
+
+- **Banner trạng thái:** An toàn / Cảnh báo (vòng đếm ngược) / SOS, kèm các bước fusion.
+- **Đai lưng:** Wi-Fi, thời gian chạy AI, biểu đồ gia tốc 2 phút, góc nghiêng thân, bảng các va chạm đã xét (đỉnh g, xác suất AI, góc, kết luận).
+- **Camera:** video trực tiếp có khung xương (MJPEG ~12 FPS), tư thế, độ tin cậy, FPS.
+- **Nhật ký fusion**, ảnh hiện trường đã gửi, thông tin hệ thống (địa chỉ server cho đai, MQTT, Telegram).
+- Nút **Bật âm thanh**, **Gửi Telegram thử**, **Đã xác nhận an toàn** (reset sau SOS).
+
+---
+
+## 3. Phần cứng (đai lưng)
+
+### 3.1. Linh kiện và đấu dây
+
+ESP32 DevKit V1, MPU6050 (GY-521; nhận cả module dùng chip MPU6500/9250), OLED SSD1306 0,96" I²C, còi chủ động, LED đỏ + LED xanh (mỗi LED một điện trở 220 Ω), nút nhấn, sạc dự phòng.
+
+![Sơ đồ đấu dây](docs/wiring.svg)
 
 | Linh kiện | Chân linh kiện | ESP32 |
 |---|---|---|
-| MPU6050 (GY-521; nhận cả module dùng chip MPU6500/MPU9250) | VCC / GND / SDA / SCL | **3V3** / GND / GPIO21 / GPIO22 (AD0 để trống → địa chỉ 0x68) |
-| OLED SSD1306 0.96" I2C | VCC / GND / SDA / SCL | 3V3 / GND / GPIO21 / GPIO22 (chung bus) |
-| Buzzer chủ động | + / − | GPIO25 / GND |
-| LED đỏ + điện trở 220 Ω | Anode | GPIO27 |
-| LED xanh + điện trở 220 Ω | Anode | GPIO26 |
-| Tact switch | 2 chân chéo nhau | GPIO4 và GND |
+| MPU6050 | VCC / GND / SDA / SCL | **3V3** / GND / GPIO21 / GPIO22 (AD0 để trống → địa chỉ 0x68) |
+| OLED SSD1306 | VCC / GND / SDA / SCL | 3V3 / GND / GPIO21 / GPIO22 (chung bus) |
+| Còi chủ động | + / − | GPIO25 / GND |
+| LED đỏ + 220 Ω | chân dài | GPIO27 |
+| LED xanh + 220 Ω | chân dài | GPIO26 |
+| Nút nhấn | 2 chân chéo nhau | GPIO4 và GND (pull-up nội, không cần điện trở) |
 
-Đổi chân trong [`firmware/fall_belt/config.h`](firmware/fall_belt/config.h) nếu đấu khác.
+- **Không cấp 5 V/VIN** cho MPU6050 và OLED.
+- Còi kêu liên tục khi bình thường thì đổi `BUZZER_ACTIVE_HIGH` thành `0` trong [`config.h`](firmware/fall_belt/config.h).
+- Đấu khác chân thì sửa trong `config.h`.
+- Thử mạch trên trình duyệt: dán [`wokwi/diagram.json`](wokwi/diagram.json) và [`wokwi/sketch.ino`](wokwi/sketch.ino) vào [wokwi.com/projects/new/esp32](https://wokwi.com/projects/new/esp32).
 
-**Hướng lắp MPU6050** (mặc định, khỏi cần hiệu chuẩn): gắn **đứng** phía trước bụng trên đai, **mặt chip hướng ra ngoài**, **mũi tên Y trên board chỉ lên đầu**. Lắp kiểu khác thì dùng hiệu chuẩn bằng nút (mục 2.3).
+**Hướng lắp MPU6050 mặc định:** gắn đứng trước bụng, mặt chip hướng ra ngoài, mũi tên Y chỉ lên đầu. Lắp kiểu khác thì hiệu chuẩn bằng nút (mục 3.3).
 
-### 2.2 Nạp firmware — một lệnh
-Cắm ESP32 qua USB rồi chạy:
+### 3.2. Nạp firmware
+
+Cắm ESP32 bằng cáp USB **có dây dữ liệu**. Cáp chỉ sạc thì board vẫn sáng đèn nhưng máy không nhận.
 ```bash
-python firmware/flash.py --monitor
+python firmware/flash.py --monitor            # tự cài toolchain + thư viện + model, biên dịch, tìm cổng, nạp, mở Serial
+python firmware/flash.py --compile-only       # chỉ biên dịch (không cần cắm board)
+python firmware/flash.py --port COM5          # chỉ định cổng (macOS: /dev/cu.usbserial-xxxx)
 ```
-Script tự cài bộ công cụ ESP32 và thư viện, biên dịch kèm model AI, tìm cổng USB rồi nạp, sau đó mở Serial Monitor. Nếu kẹt ở `Connecting...`, giữ nút **BOOT** trên ESP32.
+- Lần đầu mất khoảng 5 phút.
+- **Kẹt ở `Connecting...`:** giữ nút **BOOT** trên board.
+- **Máy không thấy cổng:** đổi cáp, cắm thẳng vào máy thay vì qua hub. Trên Mac chip Apple, bấm *Allow* khi macOS hỏi cho phép phụ kiện. Windows có thể cần driver [CP210x](https://www.silabs.com/developer-tools/usb-to-uart-bridge-vcp-drivers) hoặc [CH340](https://www.wch-ic.com/downloads/CH341SER_EXE.html).
 
 <details><summary>Dùng Arduino IDE thay vì script</summary>
 
 1. Boards Manager: cài **esp32 by Espressif**. Library Manager: cài **Adafruit MPU6050**, **Adafruit SSD1306**, **Adafruit GFX Library**, **PubSubClient**, **WiFiManager** (tzapu).
 2. *Sketch → Include Library → Add .ZIP Library…*, chọn `firmware/ei_models/Fall-Detection-SisFall_inferencing.zip`.
-3. Mở `firmware/fall_belt/fall_belt.ino`. Board **ESP32 Dev Module**, *Tools → Partition Scheme →* **Huge APP (3MB No OTA)**. Upload.
+3. Mở `firmware/fall_belt/fall_belt.ino`, board **ESP32 Dev Module**, *Partition Scheme* **Huge APP (3MB No OTA)**, rồi Upload.
 </details>
 
-### 2.3 Lần đầu bật đai
-1. **Tự kiểm tra**: OLED hiện `MPU6050 OK`, `OLED OK`, tên model AI; còi kêu một tiếng, 2 LED sáng. Nếu MPU6050 lỗi, LED đỏ nháy nhanh: kiểm tra dây.
-2. **Cấu hình WiFi bằng điện thoại**: đai phát WiFi **`FallBelt-Setup`** (mật khẩu **`fallbelt123`**, hiện trên OLED). Kết nối vào, trang cấu hình tự mở (hoặc vào `192.168.4.1`). Trang tự đóng sau 3 phút không dùng. Chọn WiFi nhà bạn (**2.4 GHz**, chung mạng với máy tính) và nhập mật khẩu. Ô *Địa chỉ server* để mặc định **`fallserver.local`**: server tự quảng bá tên này. Mạng chặn mDNS thì nhập IP hiển thị trên dashboard.
-3. Dashboard hiện **Đai lưng: Online**.
-4. **Hiệu chuẩn hướng lắp** (nên làm, 10 giây): đeo đai, **giữ nút 3 giây** → đứng thẳng yên (beep 1) → **cúi người về trước ~45°** và giữ yên (beep 2) → beep 3 lần là xong. Kết quả lưu vĩnh viễn.
+### 3.3. Lần đầu bật đai
 
-### 2.4 Sử dụng
+1. **Tự kiểm tra:** OLED hiện `MPU6050 OK`, `OLED OK` và tên model, còi kêu một tiếng. Nếu LED đỏ nháy nhanh thì MPU6050 lỗi, cần kiểm tra dây.
+2. **Cấu hình Wi-Fi bằng điện thoại.** Bật `run.py` trên máy tính trước. Điện thoại kết nối Wi-Fi **`FallBelt-Setup`** (mật khẩu `fallbelt123`), trang cấu hình sẽ tự mở (nếu không thì vào `192.168.4.1`). Chọn Wi-Fi nhà (**2,4 GHz**, chung mạng với máy tính). Ô *Địa chỉ server* để mặc định `fallserver.local`, hoặc nhập IP máy tính hiện ở ô *Hệ thống* trên dashboard. Bấm Save.
+3. Dashboard hiện **Đai lưng: Online**.
+4. **Hiệu chuẩn hướng lắp (10 giây, nên làm):** đeo đai, **giữ nút 3 s**, đứng thẳng yên (bíp 1), cúi về trước khoảng 45° và giữ yên (bíp 2), nghe bíp 3 lần là xong. Kết quả được lưu vĩnh viễn.
+
+Đổi Wi-Fi hoặc đổi máy chủ (ví dụ chuyển từ máy Windows sang Mac): **giữ nút 8 s** để mở lại trang cấu hình. Nếu hai máy cùng chạy `run.py` trong một mạng, cả hai đều xưng là `fallserver.local`. Khi đó nên tắt một máy, hoặc nhập thẳng IP.
+
+### 3.4. Sử dụng
+
 | Thao tác | Chức năng |
 |---|---|
 | Bấm nhanh nút | **Hủy** báo động (lúc đếm ngược hoặc SOS) |
-| Giữ nút 3 s (khi bình thường) | Hiệu chuẩn hướng lắp |
-| Giữ nút 8 s, hoặc giữ nút lúc cắm điện | Mở lại cấu hình WiFi |
+| Giữ 3 s | Hiệu chuẩn hướng lắp |
+| Giữ 8 s, hoặc giữ nút lúc cắm điện | Mở lại cấu hình Wi-Fi |
 
 | Trạng thái | Còi | LED | OLED |
 |---|---|---|---|
-| Bình thường | im | xanh sáng (nháy = mất mạng) | AN TOAN, \|a\|, góc thân, va chạm gần nhất |
+| Bình thường | im | xanh sáng (nháy = mất mạng) | AN TOAN, \|a\|, góc thân |
 | Phát hiện ngã | bíp mỗi giây | đỏ nháy | đếm ngược 15 s, "Bam nut de HUY" |
 | Chờ camera xác nhận | bíp nhanh | đỏ nháy nhanh | DANG XAC NHAN |
 | SOS | hú dồn dập | đỏ sáng | SOS! |
 
-Đai **mất mạng** lúc hết đếm ngược, hoặc server không phản hồi trong 20 s, thì tự chuyển SOS và hú còi tại chỗ. Mất WiFi (vd. router khởi động lại sau mất điện) thì đai tự kết nối lại mỗi 15 s; việc phát hiện té ngã vẫn chạy trong lúc đó. OLED báo **LOI CAM BIEN** nếu dây MPU6050 lỏng.
-
-**Lệnh Serial (115200)**: `help`, `info` (trạng thái), `fall` (giả lập ngã để thử cả chuỗi), `cancel`, `calib`, `wifi`, `data` (in dữ liệu cảm biến để thu dữ liệu), `factory`, `reboot`.
+**Lệnh Serial (115200 baud):** `help`, `info`, `fall` (giả lập ngã để thử cả chuỗi), `cancel`, `calib`, `wifi`, `data`, `factory`, `reboot`.
 
 ---
 
-## 3. Thuật toán phát hiện trên đai
+## 4. Camera
 
-[`detector.cpp`](firmware/fall_belt/detector.cpp) là C++ thuần, dùng chung cho ESP32 và bản kiểm thử trên PC:
-
-1. Lấy mẫu MPU6050 **50 Hz** (±16 g, ±2000 °/s, lọc 21 Hz) trong task riêng; quy đổi về hệ trục SisFall (X phải, Y xuống, Z trước).
-2. |a| > **1,8 g** (`TRIGGER_G`) → lấy đỉnh cao nhất trong 0,5 s; nhiều đỉnh liên tiếp đều được xét (hàng đợi), nên ngã ngay sau bước chạy không bị bỏ sót.
-3. Đủ 2,5 s sau đỉnh thì xét:
-   - **AI**: model Edge Impulse trên cửa sổ 2 s có **đỉnh ở chính giữa**. Đây đúng là cách dữ liệu train được cắt: mọi cửa sổ Fall có đỉnh tại mẫu 50.
-   - **Thân nghiêng thêm** ≥ 30°: hướng trọng lực 1–2 s trước so với 1–2,5 s sau. Không phụ thuộc cách gắn cảm biến.
-   - **Trước va chạm thân gần thẳng đứng** (≤ 65°): loại trường hợp đang nằm trên giường rồi trở mình.
-4. Té ngã ⇔ P(ngã) ≥ 0,5 **và** nghiêng ≥ 30° **và** trước va chạm ≤ 65°.
-
-Ngưỡng được chọn bằng `tinyml/stream_eval.py --grid` trên 4500 bản ghi:
-
-| Cấu hình | Recall | Báo nhầm (bản ghi ADL) |
-|---|---|---|
-| Sketch bàn giao: trượt 0,5 s, P ≥ 0,8 × 2 lần | 95.8% | 8.1% (17.9 lần/giờ) |
-| Chỉ AI theo đỉnh (không xét tư thế) | 97.2% | 12.1% |
-| Chỉ luật tư thế (không AI) | 97.1–97.6% | 1.0–2.3% |
-| **Firmware: AI + nghiêng + tư thế trước** | **95.7%** | **0.5%** (1 lần/giờ) |
-
-Phần lớn ca bỏ sót là ngã khi đang ngồi (F13/F14), vốn có va chạm nhẹ. Camera bù lại phần này: đai mất kết nối mà camera thấy nằm lâu thì vẫn SOS.
-
-## 4. TinyML: dữ liệu, đánh giá, train lại
-
-| Thư mục / file | Nội dung |
+| Cách | Cấu hình `CAMERA_SOURCE` trong `.env` |
 |---|---|
-| `firmware/ei_models/*.zip` | 2 model Edge Impulse của nhóm. Firmware dùng **Fall-Detection-SisFall** (tốt hơn hẳn bản ESP32: 100% so với 82.5%) |
-| `data/ei_sisfall/` | Dữ liệu JSON nhóm đã dùng train (copy từ thư mục Drive `SisFall/`) |
-| `data/sisfall_raw/` | SisFall gốc: `git clone --depth 1 https://github.com/Fall-Prevention-Team/sisfallData data/sisfall_raw` |
+| Webcam laptop | `0` |
+| iPhone đặt gần Mac (Continuity Camera, không cần app) | `1` (nếu vẫn ra webcam Mac thì thử `2`, `3`) |
+| Điện thoại đặt bất kỳ đâu, chung Wi-Fi (khuyên dùng) | URL do app phát, ví dụ `http://admin:matkhau@iphone.local:8081/video` |
 
-```bash
-python tinyml/evaluate_ei.py
-```
-Đánh giá các model trên tập test, bằng đúng mã C++ biên dịch cho PC.
+**Điện thoại qua Wi-Fi:** cài app *IP Camera Lite* (iPhone) hoặc *IP Webcam* (Android), bật server trong app, rồi điền URL (kèm tên/mật khẩu nếu app yêu cầu) vào `.env`. Dùng tên `<tên-máy>.local` thay cho IP thì router có đổi IP vẫn chạy. Để app mở trên màn hình và cắm sạc, vì phần lớn app ngừng phát khi khóa màn hình. Camera rớt mạng thì hệ thống tự kết nối lại.
 
-```bash
-python tinyml/stream_eval.py --grid
-```
-Chạy firmware detector trên toàn bộ SisFall và so sánh các ngưỡng.
+**Vị trí:** đặt camera **cao, nhìn chéo xuống sàn, thấy toàn thân**, không bị bàn ghế che, có đèn ngủ ban đêm. Đánh giá cho thấy che khuất và thiếu sáng làm camera nhận kém hẳn (xem báo cáo, mục 5.2).
 
-**Fine-tune bằng dữ liệu của chính đai:** xem **Bước 7** ở đầu README (`tinyml/belt_collect.py`).
+**Mac:** lần đầu dùng webcam, macOS hỏi quyền Camera cho Terminal (*System Settings → Privacy & Security → Camera*).
 
-Muốn train lại từ SisFall cho khớp chiến lược kích hoạt theo đỉnh, chạy lệnh dưới đây. Lệnh này thêm các cửa sổ sinh hoạt có va chạm mạnh, căn đỉnh vào giữa; sau đó upload `data/sisfall_ei_csv` như bước 7.3:
-```bash
-python tinyml/sisfall_to_ei.py --sisfall-dir data/sisfall_raw --hard-negatives
-```
+---
 
 ## 5. Telegram
-1. Nhắn **@BotFather** → `/newbot` → nhận **token**. Nhắn một tin bất kỳ cho bot vừa tạo.
-2. Lấy **chat id** qua **@userinfobot**.
-3. Điền `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` (nhiều người nhận thì ngăn cách bằng dấu phẩy) vào `.env`, khởi động lại, rồi bấm **Gửi Telegram thử** trên dashboard.
 
-## 6. Cấu trúc
-| Thư mục | Nội dung |
-|---|---|
-| `firmware/fall_belt/` | Firmware: `detector`, `belt_logic`, `orientation` (C++ thuần, có test) · `net` (WiFi/MQTT/mDNS) · `display` · `settings` · `config.h` |
-| `firmware/flash.py` | Nạp firmware một lệnh |
-| `wokwi/` | Sơ đồ mạch cho Wokwi (`diagram.json`) + sketch thử linh kiện |
-| `server/` | `fusion.py` (luật hợp nhất), `main.py` (MQTT + dashboard), `discovery.py` (mDNS), `telegram.py`, `static/index.html` |
-| `vision/` | Camera: `posture.py` (luật tư thế), `backends.py` (MediaPipe / YOLO tùy chọn) |
-| `tinyml/` | Chuyển đổi, đánh giá model và bộ phát hiện trên SisFall · `belt_collect.py`: thu dữ liệu từ đai để fine-tune |
-| `tools/ei_host/` | Biên dịch model Edge Impulse + firmware detector để chạy trên PC |
-| `simulator/` | Giả lập đai, camera, tự chạy 3 kịch bản |
-| `tests/` | `pytest` (Python + C++) |
+1. Nhắn **@BotFather**, gõ `/newbot` để nhận **token**.
+2. **Nhắn `/start` cho bot vừa tạo.** Bot chỉ gửi được tin cho người đã nhắn nó trước.
+3. Lấy chat id của bạn qua **@userinfobot**. Lưu ý: không dùng phần số ở đầu token, vì đó là id của chính con bot.
+4. Điền `TELEGRAM_BOT_TOKEN` và `TELEGRAM_CHAT_ID` vào `.env` (nhiều người nhận thì cách nhau bằng dấu phẩy), chạy lại `run.py`, rồi bấm **Gửi Telegram thử** trên dashboard.
 
-Giao thức MQTT: [`common/protocol.py`](common/protocol.py). Mọi ngưỡng fusion chỉnh trong `.env`.
+---
 
-## 7. Xử lý sự cố
+## 6. Phát triển và sửa code
+
+### 6.1. Cấu trúc thư mục
+
+| Thư mục / file | Nội dung | Sửa khi muốn… |
+|---|---|---|
+| `firmware/fall_belt/config.h` | chân cắm, ngưỡng phát hiện, Wi-Fi/MQTT mặc định | đổi chân, ngưỡng `TRIGGER_G`, `AI_THRESHOLD`… |
+| `firmware/fall_belt/detector.*` | bộ phát hiện (kích hoạt + AI + tư thế), C++ thuần có test | đổi thuật toán trên đai |
+| `firmware/fall_belt/belt_logic.*` | máy trạng thái của đai (đếm ngược, SOS tại chỗ) | |
+| `firmware/fall_belt/fall_belt.ino`, `net.*`, `display.*`, `orientation.*`, `settings.*` | lấy mẫu, Wi-Fi/MQTT/mDNS, OLED, hiệu chuẩn, lưu cấu hình | |
+| `firmware/ei_models/*.zip` | model Edge Impulse (firmware dùng **Fall-Detection-SisFall**) | thay model mới |
+| `server/fusion.py` | **luật hợp nhất** (không phụ thuộc mạng, có test) | đổi cách quyết định SOS |
+| `server/main.py`, `server/static/index.html` | MQTT, dashboard, luồng video | giao diện |
+| `server/telegram.py`, `server/discovery.py` | Telegram, quảng bá mDNS | |
+| `vision/posture.py` | **luật tư thế** + bộ làm mượt | camera nhận sai tư thế |
+| `vision/main.py`, `vision/backends.py` | đọc camera, MediaPipe / YOLO | |
+| `common/protocol.py`, `common/settings.py` | chủ đề MQTT, đọc `.env` | |
+| `simulator/` | giả lập đai, camera, kịch bản demo | |
+| `tinyml/` | đánh giá trên SisFall, thu dữ liệu đai, chấm ngưỡng | |
+| `tools/ei_host/` | biên dịch model + detector để chạy trên PC | |
+| `report/` | **sinh số liệu, hình, sơ đồ cho báo cáo** | |
+| `data/belt/` | dữ liệu thu bằng đai (`raw/` = mỗi lần thử, `ei/` = cửa sổ 2 s cho Edge Impulse) | |
+| `tests/` | `pytest` (Python + C++) | |
+
+### 6.2. Kiểm thử
+
+```bash
+python -m pytest -q
+```
+Gồm test fusion, test tư thế, test firmware C++ (cần trình biên dịch C++), và test trên SisFall (tự bỏ qua nếu chưa tải dữ liệu). Sau khi sửa `server/fusion.py`, `vision/posture.py` hay `detector.cpp`, luôn chạy lại lệnh này.
+
+### 6.3. Chỉnh ngưỡng và train lại AI bằng dữ liệu của đai
+
+**Thu dữ liệu qua Wi-Fi** (đai cấp nguồn bằng sạc dự phòng, chung mạng với máy tính; IP đai xem trên dashboard):
+```bash
+python tinyml/belt_collect.py record --label Fall   --port 192.168.1.20   # hoặc --port belt01.local
+python tinyml/belt_collect.py record --label Normal --port 192.168.1.20
+```
+Mỗi lần nhấn Enter, máy đếm ngược 3 s rồi ghi 8 s: **đứng yên khoảng 2 s, rồi ngã xuống đệm, rồi nằm yên tới hết giờ**. Nên thu ít nhất 15 lần Fall đủ kiểu (trước, ngửa, nghiêng, khuỵu gối) và 20 lần Normal (ngồi phịch, cúi nhặt đồ, nhảy, nằm xuống giường, đặt mạnh đai xuống bàn). Gõ `q` để dừng. `--port` cũng nhận cổng USB (COMx, /dev/...).
+
+**Chấm ngưỡng** (chạy đúng mã firmware và model trên dữ liệu vừa thu):
+```bash
+python tinyml/belt_collect.py eval --grid
+```
+Chọn bộ ngưỡng phù hợp, sửa `config.h`, rồi nạp lại (mục 3.2). Mẹo:
+- Bỏ sót vì đỉnh dưới ngưỡng thì giảm `TRIGGER_G`.
+- Gặp thông báo `Ngã sớm quá` thì làm lại lần đó, nhớ đứng yên 2 s trước khi ngã.
+- AI chấm sai thì train lại model như bên dưới.
+
+**Train lại model trên Edge Impulse:**
+1. Mở project **Fall-Detection-SisFall** trên [studio.edgeimpulse.com](https://studio.edgeimpulse.com).
+2. *Data acquisition → Upload data*: chọn mọi file trong `data/belt/ei/`, chọn *Automatically split* và *Infer from filename*.
+3. *Retrain model → Train*.
+4. *Deployment → Arduino library → Quantized (int8) → Build*.
+5. Ghi đè file zip vào `firmware/ei_models/Fall-Detection-SisFall_inferencing.zip` (giữ nguyên tên).
+6. Chạy `python tinyml/belt_collect.py eval` để so với model cũ. Model mới tốt hơn thì mới nạp.
+
+**Đưa dữ liệu mới lên GitHub** để máy khác dùng được: `git add data/belt && git commit && git push`. Thư mục này được phép commit, còn các bộ dữ liệu lớn khác trong `data/` thì không.
+
+### 6.4. Đánh giá trên dữ liệu công khai
+
+```bash
+git clone --depth 1 https://github.com/Fall-Prevention-Team/sisfallData data/sisfall_raw   # SisFall, ~940 MB
+python tinyml/stream_eval.py --grid          # bộ phát hiện của firmware trên 4500 bản ghi, so các ngưỡng
+python tinyml/sisfall_to_ei.py --sisfall-dir data/sisfall_raw --hard-negatives   # tạo dữ liệu train căn đỉnh
+```
+
+---
+
+## 7. Số liệu cho báo cáo, bài báo, poster
+
+Toàn bộ nằm trong **[docs/BAO_CAO_KY_THUAT.md](docs/BAO_CAO_KY_THUAT.md)**: kiến trúc, thuật toán, thông số phần cứng (năng lượng, kích thước, tần số lấy mẫu), confusion matrix và Accuracy/Precision/Recall, độ chính xác camera theo điều kiện, độ trễ. Hình nằm ở `docs/figures/` (PNG 300 dpi + SVG), sơ đồ gốc ở `docs/diagrams/`.
+
+Sinh lại mọi số liệu và hình:
+```bash
+python report/ai_metrics.py               # confusion matrix + chỉ số AI (SisFall + dữ liệu đai)
+python report/vision_eval.py              # camera trong 6 điều kiện (tự tải URFD ~100 MB)
+python report/latency_bench.py --telegram # độ trễ từng chặng (không ảnh hưởng hệ thống đang chạy)
+python report/latency_bench.py --live     # thêm số đo trên đai + camera thật (khi run.py đang chạy, đai bật)
+python report/render_diagrams.py          # sơ đồ khối SVG -> PNG (cần Chrome hoặc Edge)
+```
+
+---
+
+## 8. Xử lý sự cố
+
 | Hiện tượng | Cách xử lý |
 |---|---|
-| OLED đai ghi `NO SRV` | Đai chưa tìm thấy server. Kiểm tra `run.py` đang chạy và cùng mạng WiFi. Mạng chặn mDNS thì giữ nút 8 s và nhập IP máy tính (hiện ở mục *Hệ thống* trên dashboard). Tắt tường lửa macOS cho cổng 1883 |
-| Đai lúc vào lúc không được server, Serial báo `Server fallserver.local -> <IP lạ>` | Có máy khác trong mạng cũng quảng bá `fallserver.local` (vd. laptop khác đang chạy `run.py`). Tắt server đó, hoặc giữ nút 8 s và nhập thẳng IP máy tính |
-| OLED ghi `NO WIFI` | WiFi phải 2.4 GHz. Giữ nút 8 s để cấu hình lại |
-| Báo ngã nhầm khi đeo | Chạy hiệu chuẩn hướng lắp (giữ nút 3 s); xem cột AI/nghiêng trong bảng va chạm trên dashboard |
-| Không báo khi ngã thử | Gõ `info` trong Serial để xem góc thân; thử `fall` để kiểm tra chuỗi cảnh báo |
-| Camera nằm nhưng báo Standing | Đặt camera cao hơn, tránh để chân hướng thẳng vào ống kính; chỉnh `PostureParams` trong `vision/posture.py` |
-| `pip install mediapipe` lỗi | Dùng Python 3.11 |
+| Máy không thấy ESP32 qua USB (board vẫn sáng) | Cáp chỉ sạc, hoặc hub không truyền dữ liệu: đổi cáp, cắm thẳng vào máy. Mac: bấm *Allow* khi hỏi phụ kiện |
+| OLED ghi `NO SRV` | `run.py` chưa chạy hoặc khác mạng. Mạng chặn mDNS thì giữ nút 8 s và nhập IP máy tính. Mở tường lửa cổng 1883 |
+| Đai lúc vào lúc không, Serial báo `fallserver.local -> <IP lạ>` | Có máy khác cũng đang chạy `run.py`. Tắt máy đó, hoặc nhập thẳng IP |
+| OLED ghi `NO WIFI` | Wi-Fi phải là 2,4 GHz. Giữ nút 8 s để cấu hình lại |
+| Camera không lên hình, log báo `CERTIFICATE_VERIFY_FAILED` | Python cài từ python.org trên macOS thiếu chứng chỉ. Code đã dùng `certifi`, chỉ cần chạy lại `pip install -r requirements.txt` |
+| Camera điện thoại báo 401 / không kết nối | Thêm `user:pass@` vào URL. Kiểm tra app còn mở và iPhone chưa khóa màn hình |
+| Camera nằm mà báo Standing | Đặt camera cao hơn, tránh bị che, bật đèn. Ngưỡng nằm nằm trong `PostureParams` ở `vision/posture.py` |
+| Báo ngã nhầm khi đeo | Hiệu chuẩn hướng lắp (giữ nút 3 s). Xem cột AI / góc nghiêng trong bảng va chạm trên dashboard |
+| Telegram không nhận tin | Đã nhắn `/start` cho bot chưa? `TELEGRAM_CHAT_ID` phải là id của bạn, không phải id bot. Bấm "Gửi Telegram thử" |
+| Port 1883 / 8088 đã bị chiếm | Còn một `run.py` cũ đang chạy, hãy tắt nó (macOS: `lsof -i :1883`, Windows: `netstat -ano \| findstr 1883`) |

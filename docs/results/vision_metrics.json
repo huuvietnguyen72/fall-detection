@@ -1,0 +1,295 @@
+{
+  "stride": 2,
+  "conditions": {
+    "goc": "Gốc",
+    "thieu_sang": "Thiếu sáng",
+    "nhieu": "Nhiễu ảnh",
+    "mo": "Nhòe chuyển động",
+    "xa": "Xa / độ phân giải thấp",
+    "che_khuat": "Che khuất nửa dưới"
+  },
+  "summary": {
+    "goc": {
+      "frame_raw": {
+        "n": 4920,
+        "tp": 553,
+        "tn": 3653,
+        "fp": 83,
+        "fn": 631,
+        "accuracy": 0.8548780487804878,
+        "precision": 0.8694968553459119,
+        "recall": 0.4670608108108108,
+        "specificity": 0.9777837259100642,
+        "f1": 0.6076923076923078
+      },
+      "frame_smoothed": {
+        "n": 4920,
+        "tp": 522,
+        "tn": 3681,
+        "fp": 55,
+        "fn": 662,
+        "accuracy": 0.8542682926829268,
+        "precision": 0.9046793760831889,
+        "recall": 0.4408783783783784,
+        "specificity": 0.9852783725910065,
+        "f1": 0.5928449744463373
+      },
+      "frame_smoothed_legacy": {
+        "n": 4920,
+        "tp": 304,
+        "tn": 3699,
+        "fp": 37,
+        "fn": 880,
+        "accuracy": 0.8136178861788618,
+        "precision": 0.8914956011730205,
+        "recall": 0.25675675675675674,
+        "specificity": 0.9900963597430407,
+        "f1": 0.39868852459016396
+      },
+      "person_detected_rate": 0.8040133779264214,
+      "ms_per_frame_mean": 13.581549039657187,
+      "ms_per_frame_p95": 24.85006490896922,
+      "sequence": {
+        "fall_confirmed": 15,
+        "fall_total": 30,
+        "adl_false": 4,
+        "adl_total": 24
+      }
+    },
+    "thieu_sang": {
+      "frame_raw": {
+        "n": 4920,
+        "tp": 248,
+        "tn": 3679,
+        "fp": 57,
+        "fn": 936,
+        "accuracy": 0.7981707317073171,
+        "precision": 0.8131147540983606,
+        "recall": 0.20945945945945946,
+        "specificity": 0.9847430406852249,
+        "f1": 0.3331094694425789
+      },
+      "frame_smoothed": {
+        "n": 4920,
+        "tp": 305,
+        "tn": 3683,
+        "fp": 53,
+        "fn": 879,
+        "accuracy": 0.8105691056910569,
+        "precision": 0.8519553072625698,
+        "recall": 0.25760135135135137,
+        "specificity": 0.985813704496788,
+        "f1": 0.39559014267185477
+      },
+      "frame_smoothed_legacy": {
+        "n": 4920,
+        "tp": 108,
+        "tn": 3699,
+        "fp": 37,
+        "fn": 1076,
+        "accuracy": 0.7737804878048781,
+        "precision": 0.7448275862068966,
+        "recall": 0.09121621621621621,
+        "specificity": 0.9900963597430407,
+        "f1": 0.16252821670428894
+      },
+      "person_detected_rate": 0.5127090301003344,
+      "ms_per_frame_mean": 13.458226336702396,
+      "ms_per_frame_p95": 24.300634799874388,
+      "sequence": {
+        "fall_confirmed": 11,
+        "fall_total": 30,
+        "adl_false": 3,
+        "adl_total": 24
+      }
+    },
+    "nhieu": {
+      "frame_raw": {
+        "n": 4920,
+        "tp": 231,
+        "tn": 3684,
+        "fp": 52,
+        "fn": 953,
+        "accuracy": 0.7957317073170732,
+        "precision": 0.8162544169611308,
+        "recall": 0.19510135135135134,
+        "specificity": 0.9860813704496788,
+        "f1": 0.3149284253578732
+      },
+      "frame_smoothed": {
+        "n": 4920,
+        "tp": 274,
+        "tn": 3695,
+        "fp": 41,
+        "fn": 910,
+        "accuracy": 0.8067073170731708,
+        "precision": 0.8698412698412699,
+        "recall": 0.23141891891891891,
+        "specificity": 0.9890256959314775,
+        "f1": 0.3655770513675784
+      },
+      "frame_smoothed_legacy": {
+        "n": 4920,
+        "tp": 118,
+        "tn": 3699,
+        "fp": 37,
+        "fn": 1066,
+        "accuracy": 0.7758130081300812,
+        "precision": 0.7612903225806451,
+        "recall": 0.09966216216216216,
+        "specificity": 0.9900963597430407,
+        "f1": 0.17625093353248694
+      },
+      "person_detected_rate": 0.5543478260869565,
+      "ms_per_frame_mean": 13.59487731965768,
+      "ms_per_frame_p95": 24.91151280992199,
+      "sequence": {
+        "fall_confirmed": 11,
+        "fall_total": 30,
+        "adl_false": 2,
+        "adl_total": 24
+      }
+    },
+    "mo": {
+      "frame_raw": {
+        "n": 4920,
+        "tp": 305,
+        "tn": 3637,
+        "fp": 99,
+        "fn": 879,
+        "accuracy": 0.801219512195122,
+        "precision": 0.754950495049505,
+        "recall": 0.25760135135135137,
+        "specificity": 0.9735010706638115,
+        "f1": 0.3841309823677582
+      },
+      "frame_smoothed": {
+        "n": 4920,
+        "tp": 426,
+        "tn": 3627,
+        "fp": 109,
+        "fn": 758,
+        "accuracy": 0.823780487804878,
+        "precision": 0.7962616822429907,
+        "recall": 0.3597972972972973,
+        "specificity": 0.9708244111349036,
+        "f1": 0.49563699825479923
+      },
+      "frame_smoothed_legacy": {
+        "n": 4920,
+        "tp": 157,
+        "tn": 3681,
+        "fp": 55,
+        "fn": 1027,
+        "accuracy": 0.7800813008130081,
+        "precision": 0.7405660377358491,
+        "recall": 0.13260135135135134,
+        "specificity": 0.9852783725910065,
+        "f1": 0.22492836676217765
+      },
+      "person_detected_rate": 0.3963210702341137,
+      "ms_per_frame_mean": 12.852591383093765,
+      "ms_per_frame_p95": 23.903387819882482,
+      "sequence": {
+        "fall_confirmed": 18,
+        "fall_total": 30,
+        "adl_false": 3,
+        "adl_total": 24
+      }
+    },
+    "xa": {
+      "frame_raw": {
+        "n": 4920,
+        "tp": 479,
+        "tn": 3536,
+        "fp": 200,
+        "fn": 705,
+        "accuracy": 0.8160569105691057,
+        "precision": 0.7054491899852725,
+        "recall": 0.4045608108108108,
+        "specificity": 0.9464668094218416,
+        "f1": 0.5142243692968331
+      },
+      "frame_smoothed": {
+        "n": 4920,
+        "tp": 434,
+        "tn": 3321,
+        "fp": 415,
+        "fn": 750,
+        "accuracy": 0.7632113821138211,
+        "precision": 0.5111896348645465,
+        "recall": 0.36655405405405406,
+        "specificity": 0.8889186295503212,
+        "f1": 0.42695523856369894
+      },
+      "frame_smoothed_legacy": {
+        "n": 4920,
+        "tp": 183,
+        "tn": 3677,
+        "fp": 59,
+        "fn": 1001,
+        "accuracy": 0.7845528455284553,
+        "precision": 0.756198347107438,
+        "recall": 0.1545608108108108,
+        "specificity": 0.9842077087794433,
+        "f1": 0.25666199158485276
+      },
+      "person_detected_rate": 0.7591973244147158,
+      "ms_per_frame_mean": 13.972851013452091,
+      "ms_per_frame_p95": 26.273237777058977,
+      "sequence": {
+        "fall_confirmed": 16,
+        "fall_total": 30,
+        "adl_false": 12,
+        "adl_total": 24
+      }
+    },
+    "che_khuat": {
+      "frame_raw": {
+        "n": 4920,
+        "tp": 1,
+        "tn": 3465,
+        "fp": 271,
+        "fn": 1183,
+        "accuracy": 0.7044715447154472,
+        "precision": 0.003676470588235294,
+        "recall": 0.0008445945945945946,
+        "specificity": 0.9274625267665952,
+        "f1": 0.0013736263736263737
+      },
+      "frame_smoothed": {
+        "n": 4920,
+        "tp": 74,
+        "tn": 3453,
+        "fp": 283,
+        "fn": 1110,
+        "accuracy": 0.716869918699187,
+        "precision": 0.20728291316526612,
+        "recall": 0.0625,
+        "specificity": 0.9242505353319058,
+        "f1": 0.09604153147306943
+      },
+      "frame_smoothed_legacy": {
+        "n": 4920,
+        "tp": 44,
+        "tn": 3594,
+        "fp": 142,
+        "fn": 1140,
+        "accuracy": 0.739430894308943,
+        "precision": 0.23655913978494625,
+        "recall": 0.037162162162162164,
+        "specificity": 0.9619914346895075,
+        "f1": 0.06423357664233577
+      },
+      "person_detected_rate": 0.41722408026755853,
+      "ms_per_frame_mean": 14.073407996037467,
+      "ms_per_frame_p95": 25.463581248186532,
+      "sequence": {
+        "fall_confirmed": 1,
+        "fall_total": 30,
+        "adl_false": 10,
+        "adl_total": 24
+      }
+    }
+  }
+}

@@ -1,0 +1,172 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="760" viewBox="0 0 1600 760" font-family="Arial, Helvetica, sans-serif">
+  <title>Luồng xử lý song song: đai lưng và camera, hợp nhất tại server</title>
+  <style>
+    .title { font-size: 30px; font-weight: 700; fill: #0b0b0b; }
+    .sub { font-size: 17px; fill: #52514e; }
+    .lane { font-size: 18px; font-weight: 700; fill: #0b0b0b; }
+    .lanesub { font-size: 14px; fill: #52514e; }
+    .h { font-size: 15px; font-weight: 700; fill: #0b0b0b; }
+    .t { font-size: 13px; fill: #52514e; }
+    .box { fill: #ffffff; stroke-width: 2; }
+    .arr { stroke: #52514e; stroke-width: 2.2; fill: none; marker-end: url(#a); }
+    .arro { stroke: #eb6834; stroke-width: 2.4; fill: none; marker-end: url(#ao); }
+    .lbl { font-size: 13px; fill: #0b0b0b; }
+  </style>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#52514e"/></marker>
+    <marker id="ao" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#eb6834"/></marker>
+  </defs>
+  <rect width="1600" height="760" fill="#fcfcfb"/>
+  <text x="40" y="50" class="title">Cơ chế xử lý song song và hợp nhất quyết định (Decision Fusion)</text>
+  <text x="40" y="78" class="sub">Hai nhánh độc lập, mỗi nhánh tự kết luận tại chỗ rồi chỉ gửi kết quả gọn (vài chục byte) qua MQTT — không gửi dữ liệu thô lên server</text>
+
+  <!-- Lane A: belt -->
+  <rect x="30" y="105" width="1180" height="250" rx="14" fill="#f4f8fd" stroke="#2a78d6" stroke-width="1.5" stroke-dasharray="6 5"/>
+  <text x="50" y="135" class="lane">Nhánh A — Đai lưng (ESP32, FreeRTOS 2 nhân)</text>
+  <text x="50" y="157" class="lanesub">Nhân 1: task lấy mẫu ưu tiên cao · Nhân 0/loop: phát hiện + Wi-Fi/MQTT + OLED → lấy mẫu không bị trễ khi mạng chậm</text>
+
+  <rect x="50" y="180" width="170" height="140" rx="10" class="box" stroke="#2a78d6"/>
+  <text x="64" y="206" class="h">Lấy mẫu IMU</text>
+  <text x="64" y="228" class="t">MPU6050, I²C</text>
+  <text x="64" y="246" class="t">50 Hz, chu kỳ 20 ms</text>
+  <text x="64" y="264" class="t">gia tốc ±16 g</text>
+  <text x="64" y="282" class="t">con quay ±2000 °/s</text>
+  <text x="64" y="300" class="t">→ hàng đợi FreeRTOS</text>
+
+  <rect x="245" y="180" width="170" height="140" rx="10" class="box" stroke="#2a78d6"/>
+  <text x="259" y="206" class="h">Chuẩn hóa</text>
+  <text x="259" y="228" class="t">Quy về hệ trục</text>
+  <text x="259" y="246" class="t">SisFall (hiệu chuẩn</text>
+  <text x="259" y="264" class="t">bằng nút 3 s)</text>
+  <text x="259" y="282" class="t">đơn vị m/s², rad/s</text>
+  <text x="259" y="300" class="t">bộ đệm vòng 256 mẫu</text>
+
+  <rect x="440" y="180" width="170" height="140" rx="10" class="box" stroke="#2a78d6"/>
+  <text x="454" y="206" class="h">Kích hoạt</text>
+  <text x="454" y="228" class="t">|a| ≥ 1,8 g</text>
+  <text x="454" y="246" class="t">tìm đỉnh trong 0,5 s</text>
+  <text x="454" y="264" class="t">hàng đợi tối đa 8 đỉnh</text>
+  <text x="454" y="282" class="t">(ngã ngay sau bước</text>
+  <text x="454" y="300" class="t">chạy vẫn được xét)</text>
+
+  <rect x="635" y="180" width="180" height="140" rx="10" class="box" stroke="#2a78d6"/>
+  <text x="649" y="206" class="h">TinyML (int8)</text>
+  <text x="649" y="228" class="t">Cửa sổ 2 s = 100×6,</text>
+  <text x="649" y="246" class="t">đỉnh ở mẫu thứ 50</text>
+  <text x="649" y="264" class="t">Edge Impulse:</text>
+  <text x="649" y="282" class="t">đặc trưng phổ + mạng</text>
+  <text x="649" y="300" class="t">nơ-ron → P(Ngã)</text>
+
+  <rect x="840" y="180" width="170" height="140" rx="10" class="box" stroke="#2a78d6"/>
+  <text x="854" y="206" class="h">Luật tư thế</text>
+  <text x="854" y="228" class="t">Hướng trọng lực</text>
+  <text x="854" y="246" class="t">[−2 s,−1 s] so với</text>
+  <text x="854" y="264" class="t">[+1 s,+2,5 s]</text>
+  <text x="854" y="282" class="t">→ nghiêng thêm,</text>
+  <text x="854" y="300" class="t">tư thế trước ngã</text>
+
+  <rect x="1035" y="180" width="160" height="140" rx="10" class="box" stroke="#eb6834"/>
+  <text x="1049" y="206" class="h">Kết luận</text>
+  <text x="1049" y="228" class="t">P ≥ 0,5</text>
+  <text x="1049" y="246" class="t">∧ nghiêng ≥ 30°</text>
+  <text x="1049" y="264" class="t">∧ trước ≤ 65°</text>
+  <text x="1049" y="282" class="t">sau đỉnh 2,5 s</text>
+  <text x="1049" y="300" class="t">→ còi + event</text>
+
+  <path d="M220,250 L241,250" class="arr"/>
+  <path d="M415,250 L436,250" class="arr"/>
+  <path d="M610,250 L631,250" class="arr"/>
+  <path d="M815,250 L836,250" class="arr"/>
+  <path d="M1010,250 L1031,250" class="arr"/>
+
+  <!-- Lane B: camera -->
+  <rect x="30" y="385" width="1180" height="250" rx="14" fill="#f4f8fd" stroke="#2a78d6" stroke-width="1.5" stroke-dasharray="6 5"/>
+  <text x="50" y="415" class="lane">Nhánh B — Camera + Vision Node (máy chủ biên, Python)</text>
+  <text x="50" y="437" class="lanesub">Luồng đọc camera riêng (chỉ giữ khung mới nhất) ‖ luồng nhận diện ‖ luồng MQTT → khung hình không dồn trễ khi xử lý chậm hơn camera</text>
+
+  <rect x="50" y="460" width="170" height="140" rx="10" class="box" stroke="#2a78d6"/>
+  <text x="64" y="486" class="h">Thu khung hình</text>
+  <text x="64" y="508" class="t">iPhone / webcam</text>
+  <text x="64" y="526" class="t">MJPEG ~30 FPS</text>
+  <text x="64" y="544" class="t">bỏ khung cũ, chỉ</text>
+  <text x="64" y="562" class="t">xử lý khung mới nhất</text>
+  <text x="64" y="580" class="t">tự kết nối lại</text>
+
+  <rect x="245" y="460" width="170" height="140" rx="10" class="box" stroke="#2a78d6"/>
+  <text x="259" y="486" class="h">Ước lượng khung</text>
+  <text x="259" y="504" class="h">xương</text>
+  <text x="259" y="526" class="t">MediaPipe Pose</text>
+  <text x="259" y="544" class="t">Landmarker (Full)</text>
+  <text x="259" y="562" class="t">33 khớp, dùng 9</text>
+  <text x="259" y="580" class="t">(mũi, vai, hông, gối…)</text>
+
+  <rect x="440" y="460" width="170" height="140" rx="10" class="box" stroke="#2a78d6"/>
+  <text x="454" y="486" class="h">Đặc trưng hình học</text>
+  <text x="454" y="508" class="t">Góc thân vai→hông</text>
+  <text x="454" y="526" class="t">so với phương đứng</text>
+  <text x="454" y="544" class="t">Tỉ lệ khung bao R/C</text>
+  <text x="454" y="562" class="t">Góc đùi hông→gối</text>
+
+  <rect x="635" y="460" width="180" height="140" rx="10" class="box" stroke="#2a78d6"/>
+  <text x="649" y="486" class="h">Phân loại tư thế</text>
+  <text x="649" y="508" class="t">NẰM: thân ≥ 60° hoặc</text>
+  <text x="649" y="526" class="t">khung bao ≥ 1,8</text>
+  <text x="649" y="544" class="t">ĐỨNG / NGỒI: thân ≤ 35°,</text>
+  <text x="649" y="562" class="t">đùi ≥ 55° = ngồi</text>
+  <text x="649" y="580" class="t">còn lại: CÚI</text>
+
+  <rect x="840" y="460" width="170" height="140" rx="10" class="box" stroke="#2a78d6"/>
+  <text x="854" y="486" class="h">Làm mượt</text>
+  <text x="854" y="508" class="t">Bỏ phiếu theo cửa sổ:</text>
+  <text x="854" y="526" class="t">tư thế mới ≥ 60% khung</text>
+  <text x="854" y="544" class="t">có người trong 0,6 s</text>
+  <text x="854" y="562" class="t">(NẰM: 1 s); khung mất</text>
+  <text x="854" y="580" class="t">dấu không bỏ phiếu</text>
+
+  <rect x="1035" y="460" width="160" height="140" rx="10" class="box" stroke="#eb6834"/>
+  <text x="1049" y="486" class="h">Gửi kết quả</text>
+  <text x="1049" y="508" class="t">posture: 2 Hz</text>
+  <text x="1049" y="526" class="t">hoặc ngay khi đổi</text>
+  <text x="1049" y="544" class="t">preview: 12 FPS</text>
+  <text x="1049" y="562" class="t">ảnh hiện trường</text>
+  <text x="1049" y="580" class="t">khi server yêu cầu</text>
+
+  <path d="M220,530 L241,530" class="arr"/>
+  <path d="M415,530 L436,530" class="arr"/>
+  <path d="M610,530 L631,530" class="arr"/>
+  <path d="M815,530 L836,530" class="arr"/>
+  <path d="M1010,530 L1031,530" class="arr"/>
+
+  <!-- Fusion -->
+  <rect x="1260" y="200" width="310" height="380" rx="14" class="box" stroke="#eb6834" stroke-width="2.5"/>
+  <text x="1280" y="232" class="lane">Server Decision Fusion</text>
+  <text x="1280" y="256" class="t">Vòng quyết định 10 Hz (100 ms)</text>
+  <text x="1280" y="290" class="h">Đai báo va chạm</text>
+  <text x="1280" y="310" class="t">→ đếm ngược 15 s (cho phép hủy)</text>
+  <text x="1280" y="342" class="h">Trong đếm ngược</text>
+  <text x="1280" y="362" class="t">bấm nút → hủy</text>
+  <text x="1280" y="380" class="t">camera ĐỨNG ≥ 3 s → báo nhầm</text>
+  <text x="1280" y="412" class="h">Hết đếm ngược</text>
+  <text x="1280" y="432" class="t">camera NẰM → SOS</text>
+  <text x="1280" y="450" class="t">không thấy người → cảnh báo</text>
+  <text x="1280" y="468" class="t">ngồi / cúi → bỏ qua</text>
+  <text x="1280" y="500" class="h">Dự phòng</text>
+  <text x="1280" y="520" class="t">đai mất &gt; 10 s + camera NẰM</text>
+  <text x="1280" y="538" class="t">≥ 20 s → SOS chỉ bằng camera</text>
+  <text x="1280" y="562" class="t">đai mất server 20 s → SOS tại chỗ</text>
+
+  <path d="M1195,250 L1225,250 L1225,300 L1256,300" class="arro"/>
+  <text x="1205" y="238" class="lbl">event</text>
+  <path d="M1195,530 L1225,530 L1225,470 L1256,470" class="arro"/>
+  <text x="1205" y="552" class="lbl">posture</text>
+
+  <!-- Bottom: output -->
+  <rect x="1260" y="625" width="310" height="95" rx="12" class="box" stroke="#898781"/>
+  <text x="1280" y="653" class="h">Khi SOS</text>
+  <text x="1280" y="675" class="t">lệnh sos → còi đai · lấy ảnh hiện trường</text>
+  <text x="1280" y="695" class="t">→ Telegram (ảnh + lý do) · dashboard</text>
+  <path d="M1415,584 L1415,621" class="arro"/>
+
+  <text x="40" y="700" class="sub">Bổ trợ nhau: đai bắt được va chạm và chuyển động nhanh (camera dễ nhòe), camera xác nhận người</text>
+  <text x="40" y="724" class="sub">nằm lại trên sàn (đai không phân biệt được ngã thật với tự nằm xuống) → ít báo nhầm hơn từng nguồn riêng lẻ.</text>
+</svg>

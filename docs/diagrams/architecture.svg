@@ -1,0 +1,152 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" font-family="Arial, Helvetica, sans-serif">
+  <title>Kiến trúc hệ thống IoT giám sát té ngã</title>
+  <style>
+    .title { font-size: 30px; font-weight: 700; fill: #0b0b0b; }
+    .sub { font-size: 17px; fill: #52514e; }
+    .grp { font-size: 19px; font-weight: 700; fill: #0b0b0b; }
+    .grpsub { font-size: 14px; fill: #52514e; }
+    .box { fill: #ffffff; stroke-width: 2; rx: 10; }
+    .b-edge { stroke: #2a78d6; }
+    .b-net { stroke: #1baf7a; }
+    .b-app { stroke: #eb6834; }
+    .h { font-size: 16px; font-weight: 700; fill: #0b0b0b; }
+    .t { font-size: 14px; fill: #52514e; }
+    .lbl { font-size: 13.5px; fill: #0b0b0b; }
+    .lbl2 { font-size: 13px; fill: #52514e; }
+    .arr { stroke: #52514e; stroke-width: 2.2; fill: none; marker-end: url(#a); }
+    .arrb { stroke: #2a78d6; stroke-width: 2.2; fill: none; marker-end: url(#ab); }
+    .arro { stroke: #eb6834; stroke-width: 2.2; fill: none; marker-end: url(#ao); }
+  </style>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#52514e"/></marker>
+    <marker id="ab" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#2a78d6"/></marker>
+    <marker id="ao" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#eb6834"/></marker>
+  </defs>
+  <rect width="1600" height="900" fill="#fcfcfb"/>
+
+  <text x="40" y="50" class="title">Kiến trúc hệ thống IoT giám sát và phát hiện té ngã</text>
+  <text x="40" y="78" class="sub">Hai nguồn cảm nhận chạy song song (đai lưng đeo người + camera), hợp nhất quyết định tại máy chủ biên trong nhà, cảnh báo qua Internet</text>
+
+  <!-- ============ Lớp thiết bị ============ -->
+  <rect x="30" y="105" width="400" height="745" rx="14" fill="#f4f8fd" stroke="#2a78d6" stroke-width="1.5" stroke-dasharray="6 5"/>
+  <text x="50" y="135" class="grp">① Lớp cảm nhận (thiết bị)</text>
+
+  <rect x="50" y="150" width="360" height="430" class="box b-edge"/>
+  <text x="68" y="178" class="h">Đai lưng đeo người — ESP32-WROOM-32</text>
+  <text x="68" y="198" class="t">Xử lý tại biên (Edge AI), chạy được khi mất mạng</text>
+  <rect x="68" y="212" width="324" height="52" rx="7" fill="#eef4fc" stroke="#9ec5f4"/>
+  <text x="80" y="234" class="lbl">IMU MPU6050 · ±16 g, ±2000 °/s · lọc 21 Hz</text>
+  <text x="80" y="254" class="lbl2">Lấy mẫu 50 Hz (task FreeRTOS, nhân 1)</text>
+  <rect x="68" y="276" width="324" height="52" rx="7" fill="#eef4fc" stroke="#9ec5f4"/>
+  <text x="80" y="298" class="lbl">Kích hoạt |a| ≥ 1,8 g → tìm đỉnh va chạm</text>
+  <text x="80" y="318" class="lbl2">Cửa sổ 2 s căn đỉnh ở giữa (100 × 6 kênh)</text>
+  <rect x="68" y="340" width="324" height="70" rx="7" fill="#eef4fc" stroke="#9ec5f4"/>
+  <text x="80" y="362" class="lbl">TinyML (Edge Impulse, int8): P(Ngã)</text>
+  <text x="80" y="382" class="lbl">+ góc nghiêng thân trước / sau va chạm</text>
+  <text x="80" y="401" class="lbl2">Ngã ⇔ P ≥ 0,5 ∧ nghiêng ≥ 30° ∧ trước ≤ 65°</text>
+  <rect x="68" y="422" width="324" height="52" rx="7" fill="#eef4fc" stroke="#9ec5f4"/>
+  <text x="80" y="444" class="lbl">Máy trạng thái đai: đếm ngược 15 s</text>
+  <text x="80" y="464" class="lbl2">Mất server 20 s → tự báo SOS tại chỗ</text>
+  <rect x="68" y="486" width="324" height="78" rx="7" fill="#ffffff" stroke="#c3c2b7"/>
+  <text x="80" y="508" class="lbl">Giao diện người dùng</text>
+  <text x="80" y="528" class="lbl2">OLED 0,96" · còi · LED đỏ/xanh</text>
+  <text x="80" y="548" class="lbl2">Nút: bấm = hủy · giữ 3 s = hiệu chuẩn</text>
+
+  <rect x="50" y="610" width="360" height="220" class="box b-edge"/>
+  <text x="68" y="638" class="h">Camera trong phòng</text>
+  <text x="68" y="658" class="t">iPhone (app IP Camera) hoặc webcam</text>
+  <rect x="68" y="672" width="324" height="52" rx="7" fill="#eef4fc" stroke="#9ec5f4"/>
+  <text x="80" y="694" class="lbl">Luồng MJPEG 1920×1080, ~30 FPS</text>
+  <text x="80" y="714" class="lbl2">HTTP qua Wi-Fi (có mật khẩu)</text>
+  <text x="68" y="752" class="t">Không xử lý trên camera: mọi khung hình</text>
+  <text x="68" y="772" class="t">được phân tích tại máy chủ biên → camera</text>
+  <text x="68" y="792" class="t">rẻ, thay thế dễ, ảnh không rời khỏi nhà</text>
+  <text x="68" y="812" class="t">(chỉ ảnh hiện trường khi SOS được gửi đi).</text>
+
+  <!-- ============ Lớp mạng ============ -->
+  <rect x="455" y="105" width="210" height="745" rx="14" fill="#f1faf6" stroke="#1baf7a" stroke-width="1.5" stroke-dasharray="6 5"/>
+  <text x="475" y="135" class="grp">② Lớp mạng</text>
+  <text x="475" y="790" class="grpsub">Wi-Fi 2.4 GHz (LAN)</text>
+  <text x="475" y="810" class="grpsub">MQTT 3.1.1 / TCP</text>
+  <text x="475" y="830" class="grpsub">mDNS: fallserver.local</text>
+
+  <!-- ============ Máy chủ biên ============ -->
+  <rect x="690" y="105" width="560" height="745" rx="14" fill="#fdf4ef" stroke="#eb6834" stroke-width="1.5" stroke-dasharray="6 5"/>
+  <text x="710" y="135" class="grp">③ Máy chủ biên (laptop / PC trong nhà)</text>
+
+  <rect x="710" y="152" width="490" height="92" class="box b-net"/>
+  <text x="728" y="180" class="h">MQTT Broker — Mosquitto :1883</text>
+  <text x="728" y="202" class="t">Định tuyến bản tin publish / subscribe theo chủ đề fall/#</text>
+  <text x="728" y="222" class="t">Tự quảng bá fallserver.local → đai không cần nhập IP</text>
+
+  <rect x="710" y="300" width="400" height="110" class="box b-app"/>
+  <text x="728" y="328" class="h">Vision Node (Python, OpenCV)</text>
+  <text x="728" y="350" class="t">Luồng đọc riêng giữ khung mới nhất (không trễ dồn)</text>
+  <text x="728" y="370" class="t">MediaPipe Pose (33 khớp) → phân loại tư thế</text>
+  <text x="728" y="390" class="t">Đứng · Ngồi · Cúi · NẰM · Không người — ~14 FPS</text>
+
+  <rect x="710" y="470" width="400" height="160" class="box b-app"/>
+  <text x="728" y="498" class="h">Server Decision Fusion</text>
+  <text x="728" y="520" class="t">Máy trạng thái IDLE → COUNTDOWN → SOS</text>
+  <text x="728" y="540" class="t">Va chạm (đai) + NẰM (camera) → SOS</text>
+  <text x="728" y="560" class="t">Đứng dậy ≥ 3 s / bấm hủy → bỏ qua</text>
+  <text x="728" y="580" class="t">Mất đai + nằm lâu ≥ 20 s → SOS dự phòng</text>
+
+  <rect x="710" y="680" width="400" height="110" class="box b-app"/>
+  <text x="728" y="708" class="h">Dashboard web (Flask)</text>
+  <text x="728" y="730" class="t">Trạng thái realtime qua SSE (2 Hz)</text>
+  <text x="728" y="750" class="t">Video có khung xương: MJPEG 12 FPS</text>
+  <text x="728" y="770" class="t">Biểu đồ gia tốc, góc nghiêng, nhật ký</text>
+
+  <!-- ============ Internet ============ -->
+  <rect x="1275" y="105" width="295" height="745" rx="14" fill="#f7f6f3" stroke="#898781" stroke-width="1.5" stroke-dasharray="6 5"/>
+  <text x="1295" y="135" class="grp">④ Người chăm sóc</text>
+  <rect x="1295" y="545" width="255" height="110" class="box" stroke="#898781"/>
+  <text x="1313" y="573" class="h">Telegram Bot API</text>
+  <text x="1313" y="595" class="t">Internet, HTTPS</text>
+  <text x="1313" y="615" class="t">sendPhoto: cảnh báo + ảnh</text>
+  <text x="1313" y="635" class="t">hiện trường có khung xương</text>
+  <rect x="1295" y="340" width="255" height="110" class="box" stroke="#898781"/>
+  <text x="1313" y="368" class="h">Điện thoại người thân</text>
+  <text x="1313" y="390" class="t">Nhận tin trong ~0,3 s sau</text>
+  <text x="1313" y="410" class="t">khi server quyết định SOS</text>
+  <rect x="1295" y="680" width="255" height="110" class="box" stroke="#898781"/>
+  <text x="1313" y="708" class="h">Trình duyệt giám sát</text>
+  <text x="1313" y="730" class="t">http://&lt;máy chủ&gt;:8088</text>
+  <text x="1313" y="750" class="t">Theo dõi, xem video, reset SOS</text>
+
+  <!-- ============ Mũi tên ============ -->
+  <!-- Đai <-> broker -->
+  <path d="M410,190 L706,190" class="arrb"/>
+  <text x="440" y="180" class="lbl">status 1 Hz · event (QoS 1)</text>
+  <path d="M706,226 L414,226" class="arr"/>
+  <text x="440" y="246" class="lbl2">cmd: sos / dismiss / reset</text>
+  <!-- Camera -> Vision -->
+  <path d="M410,700 L640,700 L640,355 L706,355" class="arrb"/>
+  <text x="470" y="690" class="lbl">HTTP MJPEG</text>
+  <!-- Vision <-> broker -->
+  <path d="M800,296 L800,248" class="arro"/>
+  <text x="810" y="278" class="lbl2">posture · preview</text>
+  <path d="M1000,248 L1000,296" class="arr"/>
+  <text x="1010" y="278" class="lbl2">snapshot/request</text>
+  <!-- broker <-> fusion -->
+  <path d="M1200,226 L1225,226 L1225,505 L1114,505" class="arr"/>
+  <text x="1120" y="497" class="lbl2">belt, vision</text>
+  <path d="M1114,545 L1240,545 L1240,180 L1204,180" class="arro"/>
+  <text x="1120" y="537" class="lbl2">cmd</text>
+  <!-- fusion -> dashboard -->
+  <path d="M895,634 L895,676" class="arro"/>
+  <!-- fusion -> telegram -> phone -->
+  <path d="M1114,600 L1291,600" class="arro"/>
+  <text x="1130" y="592" class="lbl" font-weight="700">SOS (HTTPS)</text>
+  <path d="M1422,541 L1422,454" class="arro"/>
+  <!-- dashboard -> browser -->
+  <path d="M1114,735 L1291,735" class="arr"/>
+  <text x="1124" y="727" class="lbl2">HTTP · SSE · MJPEG</text>
+
+  <!-- Chú giải -->
+  <rect x="40" y="862" width="14" height="14" fill="#2a78d6"/><text x="62" y="874" class="lbl2">Dữ liệu cảm biến</text>
+  <rect x="200" y="862" width="14" height="14" fill="#eb6834"/><text x="222" y="874" class="lbl2">Kết quả xử lý / cảnh báo</text>
+  <rect x="410" y="862" width="14" height="14" fill="#52514e"/><text x="432" y="874" class="lbl2">Điều khiển / hiển thị</text>
+  <text x="1560" y="874" class="lbl2" text-anchor="end">Chủ đề MQTT: fall/belt/{id}/{status|event|cmd} · fall/vision/{id}/{posture|preview|snapshot} · fall/server/state</text>
+</svg>
