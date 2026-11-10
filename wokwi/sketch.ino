@@ -1,7 +1,7 @@
 // Sketch thử mạch trên Wokwi (không phải firmware thật): kiểm tra từng linh kiện nối đúng chân.
 //   - Quét I2C: phải thấy 0x3C (OLED) và 0x68 (MPU6050)
-//   - LED đỏ (GPIO26) / xanh (GPIO27) nháy luân phiên, còi (GPIO25) kêu mỗi 2 giây
-//   - Bấm nút (GPIO33): Serial in btn=0
+//   - LED đỏ (GPIO27) / xanh (GPIO26) nháy luân phiên, còi (GPIO25) kêu mỗi 2 giây
+//   - Bấm nút (GPIO4): Serial in btn=0
 #include <Wire.h>
 
 void setup() {
@@ -9,7 +9,7 @@ void setup() {
   pinMode(25, OUTPUT);
   pinMode(26, OUTPUT);
   pinMode(27, OUTPUT);
-  pinMode(33, INPUT_PULLUP);
+  pinMode(4, INPUT_PULLUP);
   Wire.begin(21, 22);
   for (uint8_t addr = 1; addr < 127; addr++) {
     Wire.beginTransmission(addr);
@@ -23,6 +23,6 @@ void loop() {
   digitalWrite(26, n % 2);
   digitalWrite(27, !(n % 2));
   digitalWrite(25, n % 4 == 0);
-  Serial.printf("tick %d btn=%d\n", n++, digitalRead(33));
+  Serial.printf("tick %d btn=%d\n", n++, digitalRead(4));
   delay(500);
 }
