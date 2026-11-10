@@ -151,7 +151,7 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--sisfall-dir", type=Path, default=ROOT / "data" / "sisfall_raw")
     ap.add_argument("--model", type=Path, default=DEFAULT_MODEL)
-    ap.add_argument("--trigger", type=float, default=2.0)
+    ap.add_argument("--trigger", type=float, default=1.8)
     ap.add_argument("--ai", type=float, default=0.5)
     ap.add_argument("--tilt", type=float, default=30.0)
     ap.add_argument("--pre-tilt", type=float, default=65.0)

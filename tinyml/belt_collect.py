@@ -222,7 +222,7 @@ def main() -> None:
     rec.add_argument("--port", help="COMx / /dev/... (USB) hoặc IP / belt01.local (WiFi); bỏ trống = tự tìm USB")
     ev = sub.add_parser("eval", help="chấm ngưỡng firmware trên dữ liệu đã thu")
     ev.add_argument("--model", type=Path, default=DEFAULT_MODEL)
-    ev.add_argument("--trigger", type=float, default=2.0)
+    ev.add_argument("--trigger", type=float, default=1.8)
     ev.add_argument("--ai", type=float, default=0.5)
     ev.add_argument("--tilt", type=float, default=30.0)
     ev.add_argument("--pre-tilt", type=float, default=65.0)
