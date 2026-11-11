@@ -3,7 +3,8 @@ __pycache__/
 .pytest_cache/
 .env
 logs/
-data/
+data/*
+!data/belt/
 build/
 models/*.pt
 models/*.task
