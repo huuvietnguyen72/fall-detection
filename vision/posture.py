@@ -12,6 +12,7 @@ Luật hình học:
 from __future__ import annotations
 
 import math
+from collections import deque
 from dataclasses import dataclass
 
 from common.protocol import BENDING, LYING, NO_PERSON, SITTING, STANDING
@@ -99,27 +100,51 @@ def classify(kps: dict[str, tuple[float, float, float]] | None, params: PostureP
 
 
 class PostureSmoother:
-    """Chống nhiễu: chỉ đổi tư thế khi tư thế mới được quan sát liên tục đủ lâu."""
+    """Chống nhiễu bằng bỏ phiếu theo cửa sổ thời gian.
 
-    def __init__(self, hold_s: float = 0.6, lying_hold_s: float = 1.0, no_person_hold_s: float = 1.5):
+    Đổi sang tư thế P khi, trong `hold(P)` giây gần nhất, P chiếm >= `majority` số khung CÓ thấy người.
+    Khung "không thấy người" không bỏ phiếu: người nằm trên sàn thường bị mất dấu vài khung xen kẽ
+    (đánh giá trên URFD: ~30% khung nằm), nếu để chúng cắt chuỗi thì tư thế NẰM không bao giờ được
+    xác nhận và hệ thống giữ nguyên ĐỨNG — fusion sẽ hiểu nhầm thành "đã đứng dậy".
+    Chỉ chuyển sang NO_PERSON khi mọi khung trong `no_person_hold_s` giây đều không thấy người.
+    """
+
+    def __init__(
+        self,
+        hold_s: float = 0.6,
+        lying_hold_s: float = 1.0,
+        no_person_hold_s: float = 1.5,
+        majority: float = 0.6,
+    ):
         self.hold = {LYING: lying_hold_s, NO_PERSON: no_person_hold_s}
         self.default_hold = hold_s
+        self.majority = majority
         self.current: str | None = None
         self.confidence = 0.0
-        self._cand: str | None = None
-        self._cand_since = 0.0
+        self._t0 = 0.0
+        self._hist: deque[tuple[float, str]] = deque()
+        self._keep_s = max(hold_s, lying_hold_s, no_person_hold_s)
 
     def update(self, t: float, posture: str, confidence: float) -> tuple[str, float]:
+        self._hist.append((t, posture))
+        while self._hist and self._hist[0][0] < t - self._keep_s:
+            self._hist.popleft()
         if self.current is None:
-            self.current, self.confidence = posture, confidence
+            self.current, self.confidence, self._t0 = posture, confidence, t
             return self.current, self.confidence
         if posture == self.current:
-            self._cand = None
             self.confidence = 0.7 * self.confidence + 0.3 * confidence
             return self.current, self.confidence
-        if posture != self._cand:
-            self._cand, self._cand_since = posture, t
-        if t - self._cand_since >= self.hold.get(posture, self.default_hold):
+
+        hold = self.hold.get(posture, self.default_hold)
+        if t - self._t0 < hold:  # chưa đủ dữ liệu cho cả cửa sổ
+            return self.current, self.confidence
+        window = [p for ti, p in self._hist if ti > t - hold]
+        if posture == NO_PERSON:
+            switch = all(p == NO_PERSON for p in window)
+        else:
+            seen = [p for p in window if p != NO_PERSON]
+            switch = len(seen) >= 2 and seen.count(posture) >= self.majority * len(seen)
+        if switch:
             self.current, self.confidence = posture, confidence
-            self._cand = None
         return self.current, self.confidence

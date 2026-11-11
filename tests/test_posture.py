@@ -87,3 +87,27 @@ def test_smoother_requires_hold_time():
     assert s.update(0.2, LYING, 0.9)[0] == STANDING  # nhiễu 1 khung -> chưa đổi
     assert s.update(0.8, LYING, 0.9)[0] == STANDING
     assert s.update(1.3, LYING, 0.9)[0] == LYING  # nằm liên tục >= 1s -> đổi
+
+
+def run(s, seq, fps=15, t0=0.0):
+    """Đưa chuỗi tư thế vào bộ làm mượt ở `fps` khung/giây, trả về tư thế cuối."""
+    out = None
+    for i, p in enumerate(seq):
+        out = s.update(t0 + i / fps, p, 0.9)[0]
+    return out
+
+
+def test_smoother_lying_survives_detection_dropouts():
+    # Người nằm trên sàn hay bị mất dấu xen kẽ (URFD: ~30% khung) -> vẫn phải xác nhận NẰM
+    s = PostureSmoother()
+    assert run(s, [STANDING] * 30) == STANDING
+    lying_with_gaps = [LYING, NO_PERSON, LYING, LYING, NO_PERSON, BENDING, LYING, NO_PERSON] * 3
+    assert run(s, lying_with_gaps, t0=2.0) == LYING
+
+
+def test_smoother_ignores_isolated_glitches_and_needs_full_dropout_for_no_person():
+    s = PostureSmoother()
+    run(s, [STANDING] * 30)
+    assert run(s, [STANDING, LYING, STANDING, STANDING] * 6, t0=2.0) == STANDING  # 25% NẰM: không đổi
+    assert run(s, [NO_PERSON, STANDING] * 15, t0=4.0) == STANDING  # mất dấu chập chờn: vẫn có người
+    assert run(s, [NO_PERSON] * 30, t0=6.0) == NO_PERSON  # mất hẳn >= 1.5 s

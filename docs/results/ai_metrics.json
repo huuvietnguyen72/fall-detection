@@ -1,0 +1,45 @@
+{
+  "config": {
+    "model": "Fall-Detection-SisFall_inferencing.zip",
+    "trigger": 1.8,
+    "ai": 0.5,
+    "tilt": 30.0,
+    "pre_tilt": 65.0
+  },
+  "system_sisfall": {
+    "metrics": {
+      "n": 4500,
+      "tp": 1726,
+      "tn": 2684,
+      "fp": 18,
+      "fn": 72,
+      "accuracy": 0.98,
+      "precision": 0.9896788990825688,
+      "recall": 0.9599555061179088,
+      "specificity": 0.993338267949667,
+      "f1": 0.9745906267645398
+    },
+    "hours": 21.99228888888889,
+    "false_alarms_per_hour_adl": 1.2413084463760498,
+    "missed_by_type": {
+      "F14 Ngã ngửa khi đang ngồi (ngất/ngủ gật)": 17,
+      "F11 Ngã ngửa khi ngồi xuống": 13,
+      "F13 Ngã trước khi đang ngồi (ngất/ngủ gật)": 10,
+      "F08 Ngã trước khi cố đứng dậy": 9,
+      "F09 Ngã nghiêng khi cố đứng dậy": 8,
+      "F10 Ngã trước khi ngồi xuống": 8,
+      "F07 Ngã khi đi, tay chống bàn (ngất)": 3,
+      "F06 Khuỵu thẳng xuống khi đi (ngất)": 2,
+      "F01 Ngã trước khi đi (trượt)": 1,
+      "F15 Ngã nghiêng khi đang ngồi (ngất/ngủ gật)": 1
+    },
+    "false_by_activity": {
+      "D13 Ngồi rồi nằm xuống nhanh": 10,
+      "D11 Ngồi, cố đứng dậy rồi ngã ngồi lại ghế": 4,
+      "D14 Nằm ngửa trở mình sang nghiêng": 2,
+      "D09 Ngồi ghế thấp chậm, đứng dậy": 1,
+      "D17 Lên ô tô, ngồi, xuống xe": 1
+    },
+    "note": "Model được train trên một phần SisFall -> số liệu này lạc quan hơn dữ liệu chưa thấy."
+  }
+}

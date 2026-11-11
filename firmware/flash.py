@@ -96,7 +96,8 @@ def main() -> None:
     r = cli(*compile_args, check=False, capture=True)
     if r.returncode != 0:
         sys.exit(r.stdout[-3000:] + r.stderr[-3000:])
-    print(next((ln for ln in r.stdout.splitlines() if "Sketch uses" in ln), "Biên dịch xong"))
+    usage = [ln for ln in r.stdout.splitlines() if "Sketch uses" in ln or "Global variables" in ln]
+    print("\n".join(usage) or "Biên dịch xong")
     if args.compile_only:
         return
 

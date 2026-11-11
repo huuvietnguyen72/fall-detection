@@ -51,6 +51,7 @@ class FallServer:
         self.camera: dict = {}
         self.preview: bytes | None = None
         self.preview_t = 0.0
+        self.preview_cond = threading.Condition()
         self.snapshot: bytes | None = None
         self.snapshot_t = 0.0
         self.snapshot_event = threading.Event()
@@ -89,7 +90,9 @@ class FallServer:
         parts = msg.topic.split("/")
         now = time.time()
         if parts[-1] == "preview":
-            self.preview, self.preview_t = bytes(msg.payload), now
+            with self.preview_cond:
+                self.preview, self.preview_t = bytes(msg.payload), now
+                self.preview_cond.notify_all()
             return
         if parts[-1] == "snapshot":
             self.snapshot, self.snapshot_t = bytes(msg.payload), now
@@ -297,6 +300,29 @@ def create_app(server: FallServer) -> Flask:
     @app.get("/preview.jpg")
     def preview():
         return jpeg(server.preview)
+
+    @app.get("/stream.mjpg")
+    def stream_mjpg():
+        """Luồng MJPEG: trình duyệt hiển thị như video, mỗi ảnh preview mới từ camera đẩy ngay xuống."""
+
+        def frames():
+            last_t = 0.0
+            while True:
+                with server.preview_cond:
+                    if not server.preview_cond.wait_for(lambda t=last_t: server.preview_t != t, timeout=5):
+                        return  # camera ngừng gửi -> đóng luồng; dashboard mở lại khi có hình
+                    data, last_t = server.preview, server.preview_t
+                yield (
+                    b"--frame\r\nContent-Type: image/jpeg\r\nContent-Length: "
+                    + str(len(data)).encode()
+                    + b"\r\n\r\n"
+                    + data
+                    + b"\r\n"
+                )
+
+        return Response(
+            frames(), mimetype="multipart/x-mixed-replace; boundary=frame", headers={"Cache-Control": "no-store"}
+        )
 
     @app.post("/api/test-telegram")
     def test_telegram():

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 import threading
 import time
@@ -65,12 +66,72 @@ def open_source(src: str, wait_s: float = 60):
         while not cap.isOpened() and time.time() < deadline:
             time.sleep(1)
             cap = cv2.VideoCapture(int(src))
+    if not cap.isOpened() and src.startswith(("http", "rtsp")):
+        # Camera mạng (app trên điện thoại) có thể chưa bật: chờ thay vì thoát ngay
+        print("Chưa kết nối được camera mạng, đang thử lại (mở app camera trên điện thoại)...", flush=True)
+        deadline = time.time() + wait_s * 5
+        while not cap.isOpened() and time.time() < deadline:
+            time.sleep(3)
+            cap = cv2.VideoCapture(src)
     if not cap.isOpened():
         raise SystemExit(
-            f"Không mở được camera '{src}'. Trên macOS: cấp quyền Camera cho Terminal "
+            f"Không mở được camera '{mask_url(src)}'. Trên macOS: cấp quyền Camera cho Terminal "
             "(System Settings > Privacy & Security > Camera) rồi chạy lại."
         )
     return cap
+
+
+class LatestFrameReader:
+    """Đọc camera trực tiếp ở luồng riêng, chỉ giữ khung hình MỚI NHẤT.
+
+    Camera mạng (iPhone, IP cam) phát ~30 FPS trong khi nhận diện chỉ ~13 FPS: đọc tuần tự thì
+    khung hình dồn trong bộ đệm và hình trễ dần so với thực tế. Ở đây khung cũ bị bỏ qua.
+    """
+
+    def __init__(self, cap, src: str):
+        self._cap, self._src = cap, src
+        self._cond = threading.Condition()
+        self._frame = None
+        self._seq = 0
+        self._read_seq = 0
+        threading.Thread(target=self._run, daemon=True).start()
+
+    def _run(self) -> None:
+        fails = 0
+        while True:
+            ok, frame = self._cap.read()
+            if not ok:
+                fails += 1
+                if fails == 25 and not self._src.isdigit():  # ~5 s mất hình: mở lại camera mạng
+                    print("Mất hình từ camera mạng, đang kết nối lại...", flush=True)
+                    self._cap.release()
+                    self._cap = cv2.VideoCapture(self._src)
+                    fails = 0
+                time.sleep(0.2)
+                continue
+            fails = 0
+            with self._cond:
+                self._frame, self._seq = frame, self._seq + 1
+                self._cond.notify_all()
+
+    def read(self, timeout: float = 2.0):
+        with self._cond:
+            if not self._cond.wait_for(lambda: self._seq != self._read_seq, timeout):
+                return False, None
+            self._read_seq = self._seq
+            return True, self._frame
+
+    def set(self, *args):  # tương thích cv2.VideoCapture (chỉ dùng cho file video)
+        return False
+
+
+def mask_url(src: str) -> str:
+    """Ẩn mật khẩu trong URL camera trước khi in ra log: http://user:pass@host -> http://user:***@host."""
+    return re.sub(r"(//[^:/@]+):[^@/]+@", r"\1:***@", src)
+
+
+def is_live(src: str) -> bool:
+    return src.isdigit() or src.startswith(("http", "rtsp"))
 
 
 def main() -> None:
@@ -83,6 +144,10 @@ def main() -> None:
     ap.add_argument("--mp-variant", default="full", choices=["lite", "full", "heavy"])
     ap.add_argument("--cam-id", default=S.CAM_ID)
     ap.add_argument("--max-fps", type=float, default=15)
+    ap.add_argument(
+        "--preview-fps", type=float, default=S.env_float("PREVIEW_FPS", 12), help="số ảnh/giây gửi lên dashboard"
+    )
+    ap.add_argument("--preview-width", type=int, default=S.env_int("PREVIEW_WIDTH", 640))
     ap.add_argument("--no-show", action="store_true", help="không mở cửa sổ xem trước")
     ap.add_argument("--rotate", type=int, choices=[0, 90, 180, 270], default=0)
     ap.add_argument("--loop", action="store_true", help="phát lại video từ đầu khi hết (để tập dượt)")
@@ -93,7 +158,7 @@ def main() -> None:
     )
     params = PostureParams()
     smoother = PostureSmoother()
-    print(f"Backend: {backend.name} | Nguồn: {args.source} | MQTT: {S.MQTT_HOST}:{S.MQTT_PORT}")
+    print(f"Backend: {backend.name} | Nguồn: {mask_url(args.source)} | MQTT: {S.MQTT_HOST}:{S.MQTT_PORT}")
 
     snap_req = threading.Event()
     client = S.mqtt_client(f"vision-{args.cam_id}-{int(time.time())}")
@@ -112,6 +177,9 @@ def main() -> None:
     client.loop_start()
 
     cap = open_source(args.source)
+    if is_live(args.source):
+        cap = LatestFrameReader(cap, args.source)
+    preview_dt = 1.0 / args.preview_fps if args.preview_fps > 0 else float("inf")
     rot = {90: cv2.ROTATE_90_CLOCKWISE, 180: cv2.ROTATE_180, 270: cv2.ROTATE_90_COUNTERCLOCKWISE}.get(args.rotate)
     last_pub, last_sent, last_preview, fps, t_prev = 0.0, None, 0.0, 0.0, time.time()
     min_dt = 1.0 / args.max_fps if args.max_fps > 0 else 0
@@ -119,7 +187,7 @@ def main() -> None:
         while True:
             ok, frame = cap.read()
             if not ok:
-                if not args.source.isdigit() and not args.source.startswith(("http", "rtsp")):
+                if not is_live(args.source):
                     if not args.loop:
                         print("Hết video.")
                         break
@@ -156,10 +224,12 @@ def main() -> None:
             t_prev = now
             annotated = draw(frame, kps, posture, conf, dbg, fps, params.min_score)
 
-            if now - last_preview >= 1.0:  # ảnh nhỏ cho dashboard
+            # luồng xem trước cho dashboard (MJPEG); trừ hao 30% để nhịp khung hình lệch chút không bị bỏ nửa số ảnh
+            if now - last_preview >= preview_dt * 0.7:
                 last_preview = now
                 h, w = annotated.shape[:2]
-                small = cv2.resize(annotated, (360, int(h * 360 / w)))
+                pw = min(args.preview_width, w)
+                small = cv2.resize(annotated, (pw, int(h * pw / w))) if pw != w else annotated
                 client.publish(topic_preview, cv2.imencode(".jpg", small, [cv2.IMWRITE_JPEG_QUALITY, 70])[1].tobytes())
 
             if snap_req.is_set():

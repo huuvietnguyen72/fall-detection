@@ -306,6 +306,7 @@ function steps(s) {
 }
 
 let lastSnapT = null, lastPreviewT = null, lastAnnounce = "";
+$("preview").onerror = () => { lastPreviewT = null; };  /* mất luồng -> lần cập nhật sau tự mở lại */
 function render(s) {
   const f = s.fusion, belt = s.belt, bs = belt.status || {}, cam = s.camera, sys = s.system;
   lastState = f.state;
@@ -374,11 +375,15 @@ function render(s) {
 
   /* camera */
   $("camFps").textContent = cam.online && cam.fps ? `${cam.backend || ""} · ${cam.fps} FPS` : "—";
-  if (cam.preview_t && cam.preview_t !== lastPreviewT) {
-    lastPreviewT = cam.preview_t;
-    $("preview").src = "/preview.jpg?t=" + cam.preview_t;
-  }
   const hasPreview = !!cam.preview_t;
+  /* Luồng MJPEG: mở 1 lần khi camera có hình, trình duyệt tự cập nhật như video */
+  if (hasPreview && !lastPreviewT) {
+    lastPreviewT = true;
+    $("preview").src = "/stream.mjpg?t=" + Date.now();
+  } else if (!hasPreview && lastPreviewT) {
+    lastPreviewT = null;
+    $("preview").removeAttribute("src");
+  }
   $("preview").style.display = hasPreview ? "block" : "none";
   $("camEmpty").style.display = hasPreview ? "none" : "flex";
   const badge = $("posBadge");

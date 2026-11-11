@@ -3,6 +3,7 @@ __pycache__/
 .pytest_cache/
 .env
 logs/
+
 data/*
 !data/belt/
 build/

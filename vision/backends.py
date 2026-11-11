@@ -13,6 +13,24 @@ import numpy as np
 
 MODELS_DIR = Path(__file__).resolve().parent.parent / "models"
 
+
+def download(url: str, path: Path) -> None:
+    """Tải file qua HTTPS bằng bộ chứng chỉ của certifi.
+
+    Python cài từ python.org trên macOS không dùng chứng chỉ hệ thống -> urllib báo
+    CERTIFICATE_VERIFY_FAILED. Ghi ra file tạm rồi đổi tên để không để lại file hỏng khi tải dở.
+    """
+    import ssl
+
+    import certifi
+
+    tmp = path.with_suffix(path.suffix + ".part")
+    ctx = ssl.create_default_context(cafile=certifi.where())
+    with urllib.request.urlopen(url, context=ctx, timeout=60) as r, open(tmp, "wb") as f:
+        while chunk := r.read(1 << 16):
+            f.write(chunk)
+    tmp.replace(path)
+
 # Chỉ số khớp trong từng bộ khung xương
 COCO_IDX = {  # YOLO-Pose (17 điểm COCO)
     "nose": 0,
@@ -93,7 +111,7 @@ class MediaPipeBackend:
         path = MODELS_DIR / f"pose_landmarker_{variant}.task"
         if not path.exists():
             print(f"Đang tải model MediaPipe ({variant})...")
-            urllib.request.urlretrieve(self.URL.format(v=variant), path)
+            download(self.URL.format(v=variant), path)
         self._mp = mp
         opts = vision.PoseLandmarkerOptions(
             base_options=BaseOptions(model_asset_path=str(path)),
